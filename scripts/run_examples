@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 
-set -o errexit
-set -o nounset
-
-readonly DOCKER_UID="${UID:-0}"
-readonly DOCKER_GID="${GID:-0}"
-readonly DOCKER_USER="${USER:-root}"
-
 readonly SCRIPTS_DIR="$(dirname "$0")"
 
-# Run Oak server.
-"$SCRIPTS_DIR/build_server_docker"
-"$SCRIPTS_DIR/docker_run" --detach ./bazel-bin/oak/server/oak
-readonly SERVER_CONTAINER_ID="$(docker ps --quiet --latest)"
+cargo run --manifest-path=$SCRIPTS_DIR/Cargo.toml --bin=run_examples
 
-# Run Oak examples.
-find examples -type f -name run -exec "$SCRIPTS_DIR/docker_run" {} \;
+#set -o errexit
+#set -o nounset
 
-docker stop "$SERVER_CONTAINER_ID"
+#readonly DOCKER_UID="${UID:-0}"
+#readonly DOCKER_GID="${GID:-0}"
+#readonly DOCKER_USER="${USER:-root}"
+
+## Run Oak server.
+#"$SCRIPTS_DIR/build_server_docker"
+#"$SCRIPTS_DIR/docker_run" --detach ./bazel-bin/oak/server/oak
+#readonly SERVER_CONTAINER_ID="$(docker ps --quiet --latest)"
+
+## Run Oak examples.
+#find examples -type f -name run -exec "$SCRIPTS_DIR/docker_run" {} \;
+
+#docker stop "$SERVER_CONTAINER_ID"
 
