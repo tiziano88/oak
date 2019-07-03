@@ -19,6 +19,7 @@
 #![allow(unused_results)]
 
 
+use protobuf :: Message ; use std :: io :: Write ;
 use protobuf::Message;
 use std::io::Write;
 

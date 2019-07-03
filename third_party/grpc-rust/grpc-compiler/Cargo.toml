@@ -8,6 +8,7 @@ authors = ["Stepan Koltsov <stepan.koltsov@gmail.com>"]
 [dependencies]
 protobuf = "2"
 protobuf-codegen = "2"
+quote = "0.6"
 
 [[bin]]
 

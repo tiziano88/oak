@@ -52,6 +52,7 @@ version = "0.7.0"
 dependencies = [
  "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf-codegen 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

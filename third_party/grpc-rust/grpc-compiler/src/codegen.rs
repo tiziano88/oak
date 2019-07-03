@@ -6,6 +6,7 @@ use protobuf::descriptor::*;
 use protobuf::descriptorx::*;
 use protobuf::Message;
 use protobuf_codegen::code_writer::CodeWriter;
+use quote::quote;
 
 /// Adjust method name to follow Rust style.
 fn snake_name(name: &str) -> String {
@@ -272,6 +273,12 @@ impl<'a> ServiceGen<'a> {
     }
 
     fn write(&self, w: &mut CodeWriter) {
+        let tokens = quote! {
+            use protobuf::Message;
+            use std::io::Write;
+            /* x */
+        };
+        w.write_line(tokens.to_string());
         w.write_line("use protobuf::Message;");
         w.write_line("use std::io::Write;");
         w.write_line("");
