@@ -6,10 +6,16 @@ jobs:
 
   build:
     runs-on: ubuntu-18.04
+    env:
+    - GOOGLE_CLOUD_CI: ${{ secrets.GOOGLE_CLOUD_CI }}
     steps:
     - uses: actions/checkout@v1
+    - name: login
+      run: echo "$GOOGLE_CLOUD_CI" | docker login -u _json_key --password-stdin https://gcr.io
     - name: Build the Docker image
-      run: docker build . --file=Dockerfile --tag=oak:latest
+      run: docker build . --file=Dockerfile --tag=gcr.io/oak-ci/oak:latest
+    - name: Push the Docker image
+      run: docker push gcr.io/oak-ci/oak:latest
 
   check-formatting:
     needs: [build]
