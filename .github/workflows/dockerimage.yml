@@ -12,6 +12,8 @@ jobs:
       env:
         GOOGLE_CLOUD_CI: ${{ secrets.GOOGLE_CLOUD_CI }}
       run: echo "$GOOGLE_CLOUD_CI" | docker login -u _json_key --password-stdin https://gcr.io
+    - name: Pull the Docker image
+      run: docker pull gcr.io/oak-ci/oak:latest
     - name: Build the Docker image
       run: docker build . --file=Dockerfile --pull --cache-from=gcr.io/oak-ci/oak:latest --tag=gcr.io/oak-ci/oak:latest
     - name: Push the Docker image
