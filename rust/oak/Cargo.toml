@@ -8,6 +8,7 @@ protobuf = "*"
 fmt = "*"
 log = "*"
 byteorder = "1"
+mio = { git = "https://github.com/tokio-rs/mio", revision = "017d018d75431323ff146089e074436b87dcb1a5" }
 
 [build-dependencies]
 protoc-rust = "*"

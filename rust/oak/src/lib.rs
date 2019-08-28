@@ -26,6 +26,7 @@ use protobuf::{Message, ProtobufEnum};
 use std::io;
 use std::io::Write;
 
+pub mod future;
 pub mod proto;
 #[cfg(test)]
 mod tests;
