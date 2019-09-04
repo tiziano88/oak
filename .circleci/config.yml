@@ -1,0 +1,8 @@
+version: 2
+jobs:
+  build:
+    machine: true
+    steps:
+      - checkout
+      - run: ./scripts/docker_run ./scripts/check_formatting
+      - run: ./scripts/docker_run ./scripts/build_server
