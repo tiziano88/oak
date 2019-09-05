@@ -122,6 +122,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_asylo//asylo/util:logging",
         "@com_google_asylo//asylo/util:status",
+        "@org_tensorflow//tensorflow/cc:gradients",
     ],
 )
 
