@@ -20,21 +20,21 @@
 #ifndef OAK_SERVER_ENCLAVE_SERVER_H_
 #define OAK_SERVER_ENCLAVE_SERVER_H_
 
-#include <memory>
-#include <string>
+// #include <memory>
+// #include <string>
 
-#include "absl/synchronization/mutex.h"
-#include "asylo/grpc/auth/enclave_server_credentials.h"
-#include "asylo/grpc/auth/null_credentials_options.h"
+// #include "absl/synchronization/mutex.h"
+// #include "asylo/grpc/auth/enclave_server_credentials.h"
+// #include "asylo/grpc/auth/null_credentials_options.h"
 #include "asylo/grpc/util/enclave_server.pb.h"
 #include "asylo/trusted_application.h"
 #include "asylo/util/status.h"
-#include "asylo/util/statusor.h"
-#include "include/grpcpp/impl/codegen/service_type.h"
-#include "include/grpcpp/security/server_credentials.h"
-#include "include/grpcpp/server.h"
-#include "oak/proto/enclave.pb.h"
-#include "oak/server/oak_runtime.h"
+// #include "asylo/util/statusor.h"
+// #include "include/grpcpp/impl/codegen/service_type.h"
+// #include "include/grpcpp/security/server_credentials.h"
+// #include "include/grpcpp/server.h"
+// #include "oak/proto/enclave.pb.h"
+// #include "oak/server/oak_runtime.h"
 
 namespace oak {
 
@@ -62,7 +62,7 @@ class EnclaveServer final : public asylo::TrustedApplication {
   asylo::Status Finalize(const asylo::EnclaveFinal& enclave_final) override;
 
  private:
-  std::unique_ptr<OakRuntime> runtime_;
+  // std::unique_ptr<OakRuntime> runtime_;
 };
 
 }  // namespace oak

@@ -21,13 +21,14 @@
 #include <string>
 #include <thread>
 
-#include "absl/memory/memory.h"
-#include "asylo/util/logging.h"
-#include "oak/common/app_config.h"
+// #include "absl/memory/memory.h"
+// #include "asylo/util/logging.h"
+// #include "oak/common/app_config.h"
 
 namespace oak {
 
 grpc::Status OakRuntime::Initialize(const ApplicationConfiguration& config) {
+  /*
   LOG(INFO) << "Initializing Oak Runtime";
   if (!ValidApplicationConfig(config)) {
     return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid configuration");
@@ -95,11 +96,13 @@ grpc::Status OakRuntime::Initialize(const ApplicationConfiguration& config) {
       dest_node->AddNamedChannel(dest_port, absl::make_unique<ChannelHalf>(std::move(halves.read)));
     }
   }
+  */
 
   return grpc::Status::OK;
 }
 
 grpc::Status OakRuntime::Start() {
+  /*
   LOG(INFO) << "Starting runtime";
 
   // Now all dependencies are running, start the thread for all the Wasm Nodes.
@@ -107,13 +110,17 @@ grpc::Status OakRuntime::Start() {
     LOG(INFO) << "Starting node " << named_node.first;
     named_node.second->Start();
   }
+  */
 
   return grpc::Status::OK;
 }
 
-int32_t OakRuntime::GetPort() { return grpc_node_->GetPort(); }
+int32_t OakRuntime::GetPort() { /* return grpc_node_->GetPort(); */
+  return 1;
+}
 
 grpc::Status OakRuntime::Stop() {
+  /*
   LOG(INFO) << "Stopping runtime...";
   grpc_node_ = nullptr;
   for (auto& named_node : nodes_) {
@@ -121,6 +128,7 @@ grpc::Status OakRuntime::Stop() {
     named_node.second->Stop();
   }
   nodes_.clear();
+  */
 
   return grpc::Status::OK;
 }

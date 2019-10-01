@@ -43,11 +43,11 @@ cc_library(
 cc_library(
     name = "wasm_node",
     srcs = [
-        "wabt_output.cc",
+        # "wabt_output.cc",
         "wasm_node.cc",
     ],
     hdrs = [
-        "wabt_output.h",
+        # "wabt_output.h",
         "wasm_node.h",
     ],
     deps = [
@@ -61,7 +61,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_asylo//asylo/util:logging",
-        "@wabt",
+        # "@wabt",
     ],
 )
 
@@ -120,15 +120,17 @@ cc_library(
     srcs = ["oak_runtime.cc"],
     hdrs = ["oak_runtime.h"],
     deps = [
-        ":oak_grpc_node",
-        ":wasm_node",
-        "//oak/common:app_config",
+        # ":oak_grpc_node",
+        # ":wasm_node",
+        # "//oak/common:app_config",
         "//oak/proto:enclave_cc_proto",
-        "//oak/server:logging_node",
-        "//oak/server/storage:storage_node",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_asylo//asylo/util:logging",
+        "//oak/proto:oak_api_cc_proto",
+        # "//oak/server:logging_node",
+        # "//oak/server/storage:storage_node",
+        "@com_github_grpc_grpc//:grpc++",
+        # "@com_google_absl//absl/memory",
+        # "@com_google_absl//absl/synchronization",
+        # "@com_google_asylo//asylo/util:logging",
     ],
 )
 

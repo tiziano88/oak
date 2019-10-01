@@ -20,7 +20,7 @@
 #include <memory>
 
 #include "oak/server/node_thread.h"
-#include "src/interp/interp.h"
+// #include "src/interp/interp.h"
 
 namespace oak {
 
@@ -30,35 +30,37 @@ class WasmNode final : public NodeThread {
   static std::unique_ptr<WasmNode> Create(const std::string& name, const std::string& module);
 
  private:
-  // Clients should construct WasmNode instances with Create() (which can fail).
-  WasmNode(const std::string& name);
+  /*
+   // Clients should construct WasmNode instances with Create() (which can fail).
+   WasmNode(const std::string& name);
 
-  void InitEnvironment(wabt::interp::Environment* env);
+   void InitEnvironment(wabt::interp::Environment* env);
 
-  // Return a (borrowed) pointer to the Web Assembly module for the Node.
-  wabt::interp::Module* Module() { return env_.GetLastModule(); }
+   // Return a (borrowed) pointer to the Web Assembly module for the Node.
+   wabt::interp::Module* Module() { return env_.GetLastModule(); }
 
-  void Run() override;
+   void Run() override;
 
-  // Native implementation of the `oak.channel_read` host function.
-  wabt::interp::HostFunc::Callback OakChannelRead(wabt::interp::Environment* env);
+   // Native implementation of the `oak.channel_read` host function.
+   wabt::interp::HostFunc::Callback OakChannelRead(wabt::interp::Environment* env);
 
-  // Native implementation of the `oak.channel_write` host function.
-  wabt::interp::HostFunc::Callback OakChannelWrite(wabt::interp::Environment* env);
+   // Native implementation of the `oak.channel_write` host function.
+   wabt::interp::HostFunc::Callback OakChannelWrite(wabt::interp::Environment* env);
 
-  // Native implementation of the `oak.wait_on_channels` host function.
-  wabt::interp::HostFunc::Callback OakWaitOnChannels(wabt::interp::Environment* env);
+   // Native implementation of the `oak.wait_on_channels` host function.
+   wabt::interp::HostFunc::Callback OakWaitOnChannels(wabt::interp::Environment* env);
 
-  // Native implementation of the `oak.channel_create` host function.
-  wabt::interp::HostFunc::Callback OakChannelCreate(wabt::interp::Environment* env);
+   // Native implementation of the `oak.channel_create` host function.
+   wabt::interp::HostFunc::Callback OakChannelCreate(wabt::interp::Environment* env);
 
-  // Native implementation of the `oak.channel_close` host function.
-  wabt::interp::HostFunc::Callback OakChannelClose(wabt::interp::Environment* env);
+   // Native implementation of the `oak.channel_close` host function.
+   wabt::interp::HostFunc::Callback OakChannelClose(wabt::interp::Environment* env);
 
-  // Native implementation of the `oak.channel_find` host function.
-  wabt::interp::HostFunc::Callback OakChannelFind(wabt::interp::Environment* env);
+   // Native implementation of the `oak.channel_find` host function.
+   wabt::interp::HostFunc::Callback OakChannelFind(wabt::interp::Environment* env);
 
-  wabt::interp::Environment env_;
+   wabt::interp::Environment env_;
+   */
 };
 
 }  // namespace oak

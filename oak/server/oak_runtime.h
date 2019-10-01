@@ -21,14 +21,14 @@
 #include <string>
 #include <vector>
 
-#include "include/grpcpp/security/server_credentials.h"
+// #include "include/grpcpp/security/server_credentials.h"
 #include "include/grpcpp/server.h"
 #include "oak/proto/manager.pb.h"
-#include "oak/proto/oak_api.pb.h"
-#include "oak/server/logging_node.h"
-#include "oak/server/oak_grpc_node.h"
-#include "oak/server/storage/storage_node.h"
-#include "oak/server/wasm_node.h"
+// #include "oak/proto/oak_api.pb.h"
+// #include "oak/server/logging_node.h"
+// #include "oak/server/oak_grpc_node.h"
+// #include "oak/server/storage/storage_node.h"
+// #include "oak/server/wasm_node.h"
 
 namespace oak {
 // OakRuntime contains the common runtime needed for an Oak System. The Runtime is responsible for
@@ -40,7 +40,7 @@ namespace oak {
 
 class OakRuntime {
  public:
-  OakRuntime() : grpc_node_(nullptr) {}
+  OakRuntime() {}
   virtual ~OakRuntime() = default;
 
   // Initializes a gRPC server. If the server is already initialized, does nothing.
@@ -54,9 +54,9 @@ class OakRuntime {
   OakRuntime& operator=(const OakRuntime& other) = delete;
 
   // Collection of nodes indexed by node name.
-  std::map<std::string, std::unique_ptr<OakNode>> nodes_;
+  // std::map<std::string, std::unique_ptr<OakNode>> nodes_;
   // Convenience (non-owning) reference to gRPC pseudo-node
-  OakGrpcNode* grpc_node_;
+  // OakGrpcNode* grpc_node_;
 };  // class OakRuntime
 
 }  // namespace oak

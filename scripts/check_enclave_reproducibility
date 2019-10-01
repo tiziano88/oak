@@ -18,11 +18,14 @@ mkdir -p "$DIFF_DIR"
 
 readonly IN='./bazel-bin/oak/server/asylo/oak_enclave_unsigned.so'
 
-for _ in 0 1
+for i in 0 1
 do
+    if [[ "$i" != 0 ]]; then
+        bazel clean
+    fi
+    bazel build --config=enc-sim //oak/server/asylo:oak
+    bazel build --config=enc-sim //oak/server/asylo:oak_enclave_sigstruct
     out="$DIFF_DIR/oak_enclave_unsigned_$(git rev-parse HEAD)_$(date --iso-8601=seconds).so"
-    bazel clean
-    bazel build --subcommands --config=enc-sim //oak/server/asylo:oak
     cp -f "$IN" "$out"
 done
 

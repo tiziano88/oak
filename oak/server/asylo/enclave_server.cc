@@ -16,51 +16,50 @@
 
 #include "enclave_server.h"
 
-#include <functional>
-#include <memory>
-#include <string>
-#include <thread>
+// #include <functional>
+// #include <memory>
+// #include <string>
+// #include <thread>
 
-#include "absl/synchronization/mutex.h"
-#include "asylo/grpc/auth/enclave_server_credentials.h"
-#include "asylo/grpc/auth/null_credentials_options.h"
+// #include "absl/synchronization/mutex.h"
+// #include "asylo/grpc/auth/enclave_server_credentials.h"
+// #include "asylo/grpc/auth/null_credentials_options.h"
 #include "asylo/grpc/util/enclave_server.pb.h"
 #include "asylo/trusted_application.h"
-#include "asylo/util/logging.h"
+// #include "asylo/util/logging.h"
 #include "asylo/util/status.h"
-#include "asylo/util/status_macros.h"
-#include "asylo/util/statusor.h"
-#include "include/grpcpp/security/server_credentials.h"
-#include "include/grpcpp/server.h"
-#include "include/grpcpp/server_builder.h"
-#include "oak/proto/enclave.pb.h"
-#include "oak/server/module_invocation.h"
-#include "oak/server/oak_runtime.h"
+// #include "asylo/util/status_macros.h"
+// #include "asylo/util/statusor.h"
+// #include "include/grpcpp/security/server_credentials.h"
+// #include "include/grpcpp/server.h"
+// #include "include/grpcpp/server_builder.h"
+// #include "oak/proto/enclave.pb.h"
+// #include "oak/server/oak_runtime.h"
 
 namespace oak {
 
-EnclaveServer::EnclaveServer() : runtime_(absl::make_unique<OakRuntime>()) {}
+EnclaveServer::EnclaveServer() {}
 
 asylo::Status EnclaveServer::Initialize(const asylo::EnclaveConfig& config) {
-  LOG(INFO) << "Initializing Enclave Server";
-  const InitializeInput& initialize_input_message = config.GetExtension(initialize_input);
-  const ApplicationConfiguration& application_configuration =
-      initialize_input_message.application_configuration();
-  runtime_->Initialize(application_configuration);
+  // LOG(INFO) << "Initializing Enclave Server";
+  // const InitializeInput& initialize_input_message = config.GetExtension(initialize_input);
+  // const ApplicationConfiguration& application_configuration =
+  // initialize_input_message.application_configuration();
+  // runtime_->Initialize(application_configuration);
 
-  runtime_->Start();
+  // runtime_->Start();
 
   return asylo::Status::OkStatus();
 }
 
 asylo::Status EnclaveServer::Run(const asylo::EnclaveInput& input, asylo::EnclaveOutput* output) {
-  oak::InitializeOutput* initialize_output = output->MutableExtension(oak::initialize_output);
-  initialize_output->set_grpc_port(runtime_->GetPort());
+  // oak::InitializeOutput* initialize_output = output->MutableExtension(oak::initialize_output);
+  // initialize_output->set_grpc_port(runtime_->GetPort());
   return asylo::Status::OkStatus();
 }
 
 asylo::Status EnclaveServer::Finalize(const asylo::EnclaveFinal& enclave_final) {
-  runtime_->Stop();
+  // runtime_->Stop();
   return asylo::Status::OkStatus();
 }
 

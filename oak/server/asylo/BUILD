@@ -27,6 +27,7 @@ load(
     "@linux_sgx//:sgx_sdk.bzl",
     "sgx_enclave",
     "sgx_enclave_configuration",
+    "sgx_generate_sigstruct",
 )
 
 cc_library(
@@ -38,14 +39,14 @@ cc_library(
         "enclave_server.h",
     ],
     deps = [
-        "//oak/proto:enclave_cc_proto",
-        "//oak/server:oak_runtime",
-        "@com_github_grpc_grpc//:grpc++",
+        # "//oak/proto:enclave_cc_proto",
+        # "//oak/server:oak_runtime",
+        # "@com_github_grpc_grpc//:grpc++",
         "@com_google_asylo//asylo:enclave_runtime",
-        "@com_google_asylo//asylo/grpc/auth:grpc++_security_enclave",
-        "@com_google_asylo//asylo/grpc/auth:null_credentials_options",
+        # "@com_google_asylo//asylo/grpc/auth:grpc++_security_enclave",
+        # "@com_google_asylo//asylo/grpc/auth:null_credentials_options",
         "@com_google_asylo//asylo/grpc/util:enclave_server_cc_proto",
-        "@com_google_asylo//asylo/util:logging",
+        # "@com_google_asylo//asylo/util:logging",
         "@com_google_asylo//asylo/util:status",
     ],
 )
@@ -91,9 +92,15 @@ sgx_enclave(
     # https://github.com/google/asylo/commit/9c557c22f84b1d27ee7a9d1791af8dd2faabe7cc.
     stamp = 0,
     deps = [
-        "//oak/server/asylo:enclave_server",
+        ":enclave_server",
         "@com_google_asylo//asylo/grpc/util:enclave_server",
     ],
+)
+
+sgx_generate_sigstruct(
+    name = "oak_enclave_sigstruct",
+    config = "grpc_enclave_config",
+    unsigned = ":oak_enclave_unsigned.so",
 )
 
 enclave_loader(

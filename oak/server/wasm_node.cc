@@ -27,13 +27,14 @@
 #include "asylo/util/logging.h"
 #include "oak/proto/oak_api.pb.h"
 #include "oak/server/channel.h"
-#include "oak/server/wabt_output.h"
-#include "src/binary-reader.h"
-#include "src/error-formatter.h"
-#include "src/error.h"
-#include "src/interp/binary-reader-interp.h"
+// #include "oak/server/wabt_output.h"
+// #include "src/binary-reader.h"
+// #include "src/error-formatter.h"
+// #include "src/error.h"
+// #include "src/interp/binary-reader-interp.h"
 
 namespace oak {
+/*
 
 // From https://github.com/WebAssembly/wabt/blob/master/src/tools/wasm-interp.cc .
 
@@ -41,161 +42,165 @@ static std::unique_ptr<wabt::FileStream> s_log_stream = wabt::FileStream::Create
 static std::unique_ptr<wabt::FileStream> s_stdout_stream = wabt::FileStream::CreateStdout();
 
 static bool MemoryAvailable(wabt::interp::Environment* env, const uint32_t offset,
-                            const uint32_t size) {
-  return ((offset + size) <= env->GetMemory(0)->data.size());
+                          const uint32_t size) {
+return ((offset + size) <= env->GetMemory(0)->data.size());
 }
 
 static absl::Span<const char> ReadMemory(wabt::interp::Environment* env, const uint32_t offset,
-                                         const uint32_t size) {
-  return absl::MakeConstSpan(env->GetMemory(0)->data).subspan(offset, size);
+                                       const uint32_t size) {
+return absl::MakeConstSpan(env->GetMemory(0)->data).subspan(offset, size);
 }
 
 static void WriteMemory(wabt::interp::Environment* env, const uint32_t offset,
-                        const absl::Span<const char> data) {
-  std::copy(data.cbegin(), data.cend(), env->GetMemory(0)->data.begin() + offset);
+                      const absl::Span<const char> data) {
+std::copy(data.cbegin(), data.cend(), env->GetMemory(0)->data.begin() + offset);
 }
 
 static void WriteI32(wabt::interp::Environment* env, const uint32_t offset, const int32_t value) {
-  return absl::little_endian::Store32(env->GetMemory(0)->data.data() + offset, value);
+return absl::little_endian::Store32(env->GetMemory(0)->data.data() + offset, value);
 }
 
 static void WriteU64(wabt::interp::Environment* env, const uint32_t offset, const uint64_t v) {
-  return absl::little_endian::Store64(env->GetMemory(0)->data.data() + offset, v);
+return absl::little_endian::Store64(env->GetMemory(0)->data.data() + offset, v);
 }
 
 static uint64_t ReadU64(wabt::interp::Environment* env, const uint32_t offset) {
-  return absl::little_endian::Load64(env->GetMemory(0)->data.data() + offset);
+return absl::little_endian::Load64(env->GetMemory(0)->data.data() + offset);
 }
 
 static void LogHostFunctionCall(const wabt::interp::HostFunc* func,
-                                const wabt::interp::TypedValues& args) {
-  std::stringstream params;
-  bool first = true;
-  for (auto const& arg : args) {
-    params << std::string(first ? "" : ", ") << wabt::interp::TypedValueToString(arg);
-    first = false;
-  }
-  LOG(INFO) << "Called host function: " << func->module_name << "." << func->field_name << "("
-            << params.str() << ")";
+                              const wabt::interp::TypedValues& args) {
+std::stringstream params;
+bool first = true;
+for (auto const& arg : args) {
+  params << std::string(first ? "" : ", ") << wabt::interp::TypedValueToString(arg);
+  first = false;
+}
+LOG(INFO) << "Called host function: " << func->module_name << "." << func->field_name << "("
+          << params.str() << ")";
 }
 
 static wabt::Result ReadModule(const std::string& module_bytes, wabt::interp::Environment* env,
-                               wabt::Errors* errors) {
-  LOG(INFO) << "Reading module";
-  wabt::Result result;
+                             wabt::Errors* errors) {
+LOG(INFO) << "Reading module";
+wabt::Result result;
 
-  wabt::Features s_features;
-  const bool kReadDebugNames = true;
-  const bool kStopOnFirstError = true;
-  const bool kFailOnCustomSectionError = true;
-  wabt::Stream* log_stream = nullptr;
-  wabt::ReadBinaryOptions options(s_features, log_stream, kReadDebugNames, kStopOnFirstError,
-                                  kFailOnCustomSectionError);
+wabt::Features s_features;
+const bool kReadDebugNames = true;
+const bool kStopOnFirstError = true;
+const bool kFailOnCustomSectionError = true;
+wabt::Stream* log_stream = nullptr;
+wabt::ReadBinaryOptions options(s_features, log_stream, kReadDebugNames, kStopOnFirstError,
+                                kFailOnCustomSectionError);
 
-  wabt::interp::DefinedModule* module = nullptr;
-  return wabt::ReadBinaryInterp(env, module_bytes.data(), module_bytes.size(), options, errors,
-                                &module);
+wabt::interp::DefinedModule* module = nullptr;
+return wabt::ReadBinaryInterp(env, module_bytes.data(), module_bytes.size(), options, errors,
+                              &module);
 }
 
 // Describes an expected export from an Oak module.
 struct RequiredExport {
-  std::string name_;
-  bool mandatory_;
-  wabt::interp::FuncSignature sig_;
+std::string name_;
+bool mandatory_;
+wabt::interp::FuncSignature sig_;
 };
 
 }  // namespace oak
 
 std::ostream& operator<<(std::ostream& os, const oak::RequiredExport& r) {
-  return os << (r.mandatory_ ? "required" : "optional") << " export '" << r.name_
-            << "' with signature " << r.sig_;
+return os << (r.mandatory_ ? "required" : "optional") << " export '" << r.name_
+          << "' with signature " << r.sig_;
 }
 
 namespace oak {
 
 const std::vector<RequiredExport> kRequiredExports({
-    {
-        "oak_main",
-        true,
-        wabt::interp::FuncSignature(std::vector<wabt::Type>{},
-                                    std::vector<wabt::Type>{wabt::Type::I32}),
-    },
+  {
+      "oak_main",
+      true,
+      wabt::interp::FuncSignature(std::vector<wabt::Type>{},
+                                  std::vector<wabt::Type>{wabt::Type::I32}),
+  },
 });
 
 // Check module exports all required functions with the correct signatures,
 // returning true if so.
 static bool CheckModuleExport(wabt::interp::Environment* env, wabt::interp::Module* module,
-                              const RequiredExport& req) {
-  LOG(INFO) << "check for " << req;
-  wabt::interp::Export* exp = module->GetExport(req.name_);
-  if (exp == nullptr) {
-    if (req.mandatory_) {
-      LOG(WARNING) << "Could not find required export '" << req.name_ << "' in module";
-      return false;
-    }
-    LOG(INFO) << "optional import '" << req.name_ << "' missing";
-    return true;
-  }
-  if (exp->kind != wabt::ExternalKind::Func) {
-    LOG(WARNING) << "Required export of kind " << exp->kind << " not func in module";
+                            const RequiredExport& req) {
+LOG(INFO) << "check for " << req;
+wabt::interp::Export* exp = module->GetExport(req.name_);
+if (exp == nullptr) {
+  if (req.mandatory_) {
+    LOG(WARNING) << "Could not find required export '" << req.name_ << "' in module";
     return false;
   }
-  LOG(INFO) << "check signature of function #" << exp->index;
-  wabt::interp::Func* func = env->GetFunc(exp->index);
-  if (func == nullptr) {
-    LOG(WARNING) << "failed to retrieve function #" << exp->index;
-    return false;
-  }
-  if (func->sig_index >= env->GetFuncSignatureCount()) {
-    LOG(WARNING) << "Function #" << func->sig_index << " beyond range of signature types";
-    return false;
-  }
-  wabt::interp::FuncSignature* sig = env->GetFuncSignature(func->sig_index);
-  if (sig == nullptr) {
-    LOG(WARNING) << "Could not find signature for function #" << exp->index;
-    return false;
-  }
-  LOG(INFO) << "function #" << exp->index << " has type #" << func->sig_index << " with signature "
-            << *sig;
-  if ((sig->param_types != req.sig_.param_types) || (sig->result_types != req.sig_.result_types)) {
-    LOG(WARNING) << "Function signature mismatch for " << req.name_ << ": got " << *sig << ", want "
-                 << req.sig_;
-    return false;
-  }
+  LOG(INFO) << "optional import '" << req.name_ << "' missing";
   return true;
 }
-static bool CheckModuleExports(wabt::interp::Environment* env, wabt::interp::Module* module) {
-  return std::all_of(
-      kRequiredExports.begin(), kRequiredExports.end(),
-      [env, module](const RequiredExport& req) { return CheckModuleExport(env, module, req); });
+if (exp->kind != wabt::ExternalKind::Func) {
+  LOG(WARNING) << "Required export of kind " << exp->kind << " not func in module";
+  return false;
 }
+LOG(INFO) << "check signature of function #" << exp->index;
+wabt::interp::Func* func = env->GetFunc(exp->index);
+if (func == nullptr) {
+  LOG(WARNING) << "failed to retrieve function #" << exp->index;
+  return false;
+}
+if (func->sig_index >= env->GetFuncSignatureCount()) {
+  LOG(WARNING) << "Function #" << func->sig_index << " beyond range of signature types";
+  return false;
+}
+wabt::interp::FuncSignature* sig = env->GetFuncSignature(func->sig_index);
+if (sig == nullptr) {
+  LOG(WARNING) << "Could not find signature for function #" << exp->index;
+  return false;
+}
+LOG(INFO) << "function #" << exp->index << " has type #" << func->sig_index << " with signature "
+          << *sig;
+if ((sig->param_types != req.sig_.param_types) || (sig->result_types != req.sig_.result_types)) {
+  LOG(WARNING) << "Function signature mismatch for " << req.name_ << ": got " << *sig << ", want "
+               << req.sig_;
+  return false;
+}
+return true;
+}
+static bool CheckModuleExports(wabt::interp::Environment* env, wabt::interp::Module* module) {
+return std::all_of(
+    kRequiredExports.begin(), kRequiredExports.end(),
+    [env, module](const RequiredExport& req) { return CheckModuleExport(env, module, req); });
+}
+
 
 WasmNode::WasmNode(const std::string& name) : NodeThread(name) {}
+*/
 
 std::unique_ptr<WasmNode> WasmNode::Create(const std::string& name, const std::string& module) {
-  LOG(INFO) << "Creating Wasm Node";
+  // LOG(INFO) << "Creating Wasm Node";
 
-  std::unique_ptr<WasmNode> node = absl::WrapUnique(new WasmNode(name));
-  node->InitEnvironment(&node->env_);
-  LOG(INFO) << "Host func count: " << node->env_.GetFuncCount();
+  // std::unique_ptr<WasmNode> node = absl::WrapUnique(new WasmNode(name));
+  // node->InitEnvironment(&node->env_);
+  // LOG(INFO) << "Host func count: " << node->env_.GetFuncCount();
 
-  wabt::Errors errors;
-  LOG(INFO) << "Reading module";
-  wabt::Result result = ReadModule(module, &node->env_, &errors);
-  if (!wabt::Succeeded(result)) {
-    LOG(WARNING) << "Could not read module: " << result;
-    LOG(WARNING) << "Errors: " << wabt::FormatErrorsToString(errors, wabt::Location::Type::Binary);
-    return nullptr;
-  }
+  // wabt::Errors errors;
+  // LOG(INFO) << "Reading module";
+  // wabt::Result result = ReadModule(module, &node->env_, &errors);
+  // if (!wabt::Succeeded(result)) {
+  //   LOG(WARNING) << "Could not read module: " << result;
+  //   LOG(WARNING) << "Errors: " << wabt::FormatErrorsToString(errors,
+  //   wabt::Location::Type::Binary); return nullptr;
+  // }
 
-  LOG(INFO) << "Reading module done";
-  if (!CheckModuleExports(&node->env_, node->Module())) {
-    LOG(WARNING) << "Failed to validate module";
-    return nullptr;
-  }
+  // LOG(INFO) << "Reading module done";
+  // if (!CheckModuleExports(&node->env_, node->Module())) {
+  //   LOG(WARNING) << "Failed to validate module";
+  return nullptr;
+  // }
 
-  return node;
+  // return node;
 }
+
+/*
 
 // Register all available host functions so that they are available to the Oak Module at runtime.
 void WasmNode::InitEnvironment(wabt::interp::Environment* env) {
@@ -511,5 +516,6 @@ wabt::interp::HostFunc::Callback WasmNode::OakChannelFind(wabt::interp::Environm
     return wabt::interp::Result::Ok;
   };
 }
+*/
 
 }  // namespace oak
