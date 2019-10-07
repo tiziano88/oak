@@ -1,0 +1,14 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    waitFor: ['-']
+    timeout: 1h
+    entrypoint: 'bash'
+    args: ['./scripts/docker_run', './scripts/build_server']
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['cp', 'Dockerfile', 'gs://$PROJECT_ID/hello']
+
+timeout: 2h
+options:
+  machineType: 'N1_HIGHCPU_8'
+  requestedVerifyOption: 'VERIFIED'
+  sourceProvenanceHash: [ 'SHA256' ]
