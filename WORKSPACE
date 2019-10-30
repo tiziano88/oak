@@ -20,6 +20,13 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 http_archive(
+    name = "io_bazel_rules_docker",
+    sha256 = "14ac30773fdb393ddec90e158c9ec7ebb3f8a4fd533ec2abbfd8789ad81a284b",
+    strip_prefix = "rules_docker-0.12.1",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.12.1/rules_docker-v0.12.1.tar.gz"],
+)
+
+http_archive(
     name = "com_google_absl",
     sha256 = "27184e97131edb9a289b1c2cd404c234afa5ceaae44c5eb6713138cb674535aa",
     strip_prefix = "abseil-cpp-ac78ffc3bc0a8b295cab9a03817760fd460df2a1",
@@ -56,7 +63,7 @@ http_archive(
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
-protobuf_deps()
+# protobuf_deps()
 
 # Google APIs for Cloud Spanner protos.
 # TODO: Switch from fork after https://github.com/googleapis/googleapis/pull/553 is merged.
@@ -90,27 +97,27 @@ http_archive(
 # WebAssembly Binary Toolkit (forked by tiziano88).
 git_repository(
     name = "wabt",
-    remote = "https://github.com/daviddrysdale/wabt",
     commit = "30e914b1630db13080cc054b591ab5822b9b4768",
+    remote = "https://github.com/daviddrysdale/wabt",
 )
 
-load(
-    "@com_google_asylo//asylo/bazel:asylo_deps.bzl",
-    "asylo_deps",
-    "asylo_go_deps",
-)
+# load(
+#     "@com_google_asylo//asylo/bazel:asylo_deps.bzl",
+#     "asylo_deps",
+#     "asylo_go_deps",
+# )
 
-asylo_deps()
+# asylo_deps()
 
-asylo_go_deps()
+# asylo_go_deps()
 
-load("@com_google_asylo//asylo/bazel:sgx_deps.bzl", "sgx_deps")
+# load("@com_google_asylo//asylo/bazel:sgx_deps.bzl", "sgx_deps")
 
-sgx_deps()
+# sgx_deps()
 
-load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+# load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
-grpc_deps()
+# grpc_deps()
 
 # clang + llvm 8.0
 http_archive(
@@ -120,3 +127,14 @@ http_archive(
     strip_prefix = "clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04",
     url = "http://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz",
 )
+
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
+)
+
+container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()

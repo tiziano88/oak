@@ -31,6 +31,10 @@ load(
     "@linux_sgx//:sgx_sdk.bzl",
     "sgx",
 )
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+)
 
 cc_library(
     name = "enclave_server",
@@ -123,4 +127,8 @@ enclave_loader(
         "@com_google_absl//absl/time",
         "@com_google_asylo//asylo/util:logging",
     ],
+)
+
+container_image(
+    name = "helloworld",
 )
