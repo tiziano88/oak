@@ -7,8 +7,8 @@ license = "Apache-2.0"
 
 [dependencies]
 log = { version = "^0.4.0", features = ["std"] }
-oak = "*"
-oak_abi = "*"
+oak = { path = "../../../../sdk/rust/oak" }
+oak_abi = { path = "../oak_abi" }
 protobuf = "*"
 rand = { version = "0.7", features = ["std"] }
 

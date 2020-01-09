@@ -60,7 +60,7 @@ RUN chmod a+rwx ${RUSTUP_DIR}
 
 # Install Rust toolchain.
 # We currently need the nightly version in order to be able to compile some of the examples.
-ARG RUST_VERSION=nightly-2019-07-18
+ARG RUST_VERSION=1.40.0
 RUN rustup toolchain install ${RUST_VERSION}
 RUN rustup default ${RUST_VERSION}
 

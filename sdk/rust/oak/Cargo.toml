@@ -6,7 +6,7 @@ edition = "2018"
 license = "Apache-2.0"
 
 [dependencies]
-oak_abi = "*"
+oak_abi = { path = "../../../oak/server/rust/oak_abi" }
 protobuf = "*"
 fmt = "*"
 log = "*"
@@ -18,7 +18,7 @@ protoc-rust = "*"
 
 [dev-dependencies]
 assert_matches = "*"
-oak_derive = "*"
-oak_tests = "*"
+oak_derive = { path = "../oak_derive" }
+oak_tests = { path = "../oak_tests" }
 serial_test = "0.2"
 serial_test_derive = "0.2"

@@ -12,9 +12,9 @@ abitest_common = { path = "../../abitest_common" }
 byteorder = "1"
 expect = { path = "../../../../third_party/expect" }
 log = "*"
-oak = "*"
-oak_abi = "*"
-oak_log = "*"
+oak = { path = "../../../../sdk/rust/oak" }
+oak_abi = { path = "../../../../oak/server/rust/oak_abi" }
+oak_log = { path = "../../../../sdk/rust/oak_log" }
 protobuf = "*"
 rand_core = "0.5"
 rand = "0.7"

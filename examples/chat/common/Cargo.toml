@@ -9,7 +9,7 @@ crate-type = ["lib"]
 
 [dependencies]
 log = "*"
-oak = "*"
+oak = { path = "../../../../oak/sdk/rust/oak" }
 protobuf = "*"
 
 [build-dependencies]

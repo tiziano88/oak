@@ -11,6 +11,6 @@ crate-type = ["cdylib"]
 rusty-machine = "*"
 rand = "*"
 rand_distr = "*"
-oak = "*"
-oak_derive = "*"
+oak = { path = "../../../../sdk/rust/oak" }
+oak_derive = { path = "../../../../sdk/rust/oak_derive" }
 protobuf = "*"

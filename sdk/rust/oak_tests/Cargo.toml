@@ -9,11 +9,11 @@ license = "Apache-2.0"
 byteorder = "1"
 lazy_static = "1.4"
 log = { version = "^0.4.0", features = ["std"] }
-oak_abi = "*"
-oak_derive = "*"
-oak_log = "*"
-oak_runtime = "*"
-oak = "*"
+oak_abi = { path = "../../../oak/server/rust/oak_abi" }
+oak_derive = { path = "../oak_derive" }
+oak_log = { path = "../oak_log" }
+oak_runtime = { path = "../../../oak/server/rust/oak_runtime" }
+oak = { path = "../oak" }
 protobuf = "*"
 rand = { version = "0.7", features = ["std"] }
 simple_logger = "1"
