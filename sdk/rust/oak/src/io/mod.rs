@@ -16,37 +16,24 @@
 
 //! Wrappers for Oak SDK types to allow their use with [`std::io`].
 
-use crate::{channel_close, channel_write, OakStatus};
+use crate::{channel_write, OakStatus};
 #[cfg(test)]
 use assert_matches::assert_matches;
 use std::io;
 
-/// Wrapper for a WriteHandle to implement the [`std::io::Write`] trait.
-///
-/// Methods taking `Write` trait objects require mutable references,
-/// so use a distinct type rather than implementing the trait on the
-/// base [`WriteHandle`] type.
-///
-/// [`WriteHandle`]: crate::WriteHandle
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Channel {
-    pub handle: crate::WriteHandle,
-}
+mod decodable;
+mod encodable;
+mod receiver;
+mod sender;
 
-impl Channel {
-    /// Create a new `io::Channel` that uses the given channel handle.
-    pub fn new(handle: crate::WriteHandle) -> Self {
-        Channel { handle }
-    }
-    /// Close the underlying channel handle.
-    pub fn close(self) -> std::io::Result<()> {
-        result_from_status(Some(channel_close(self.handle.handle)), ())
-    }
-}
+pub use decodable::Decodable;
+pub use encodable::Encodable;
+pub use receiver::Receiver;
+pub use sender::Sender;
 
-/// Implement the [`std::io::Write`] trait for `io::Channel`, to allow logging
+/// Implement the [`std::io::Write`] trait for `io::Sender`, to allow logging
 /// and use of protobuf serialization methods.
-impl std::io::Write for Channel {
+impl std::io::Write for Sender {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let status = channel_write(self.handle, buf, &[]);
         result_from_status(Some(status), buf.len())

@@ -16,10 +16,11 @@
 
 //! Functionality to help Oak Nodes interact with gRPC.
 
+use crate::io::{Receiver, Sender};
 pub use crate::proto::code::Code;
-use crate::{proto, Handle, OakStatus, ReadHandle, WriteHandle};
+use crate::{proto, Handle, OakError, OakStatus};
 use log::info;
-use protobuf::{Message, ProtobufEnum, ProtobufResult};
+use protobuf::{ProtobufEnum, ProtobufResult};
 
 /// Result type that uses a [`proto::status::Status`] type for error values.
 pub type Result<T> = std::result::Result<T, proto::status::Status>;
@@ -36,7 +37,7 @@ pub fn build_status(code: Code, msg: &str) -> proto::status::Status {
 /// `GrpcResponse` wrapper messages and writes serialized versions to a send
 ///  channel.
 pub struct ChannelResponseWriter {
-    channel: crate::io::Channel,
+    sender: Sender,
 }
 
 /// Indicate whether a write method should leave the current gRPC method
@@ -48,15 +49,13 @@ pub enum WriteMode {
 }
 
 impl ChannelResponseWriter {
-    pub fn new(out_handle: crate::WriteHandle) -> Self {
-        ChannelResponseWriter {
-            channel: crate::io::Channel::new(out_handle),
-        }
+    pub fn new(sender: Sender) -> Self {
+        ChannelResponseWriter { sender }
     }
 
     /// Retrieve the Oak handle underlying the writer object.
-    pub fn handle(self) -> crate::WriteHandle {
-        self.channel.handle
+    pub fn handle(self) -> crate::Handle {
+        self.sender.handle
     }
 
     /// Write out a gRPC response and optionally close out the method
@@ -66,15 +65,19 @@ impl ChannelResponseWriter {
         // serialize it into the channel.
         let mut grpc_rsp = proto::grpc_encap::GrpcResponse::new();
         let mut any = protobuf::well_known_types::Any::new();
-        rsp.write_to_writer(&mut any.value).unwrap();
+        rsp.write_to_writer(&mut any.value)
+            .expect("could not write `any` message");
         grpc_rsp.set_rsp_msg(any);
         grpc_rsp.set_last(match mode {
             WriteMode::KeepOpen => false,
             WriteMode::Close => true,
         });
-        grpc_rsp.write_to_writer(&mut self.channel)?;
+        // TODO: Handle errors.
+        self.sender
+            .send(&grpc_rsp)
+            .expect("could not write gRPC response");
         if mode == WriteMode::Close {
-            self.channel.close()?;
+            self.sender.close().expect("could not close channel");
         }
         Ok(())
     }
@@ -88,9 +91,12 @@ impl ChannelResponseWriter {
             WriteMode::KeepOpen => false,
             WriteMode::Close => true,
         });
-        grpc_rsp.write_to_writer(&mut self.channel)?;
+        // TODO: Handle errors.
+        self.sender
+            .send(&grpc_rsp)
+            .expect("could not write gRPC response");
         if mode == WriteMode::Close {
-            self.channel.close()?;
+            self.sender.close().expect("could not close channel");
         }
         Ok(())
     }
@@ -104,8 +110,11 @@ impl ChannelResponseWriter {
         if let Err(status) = result {
             grpc_rsp.set_status(status);
         }
-        grpc_rsp.write_to_writer(&mut self.channel)?;
-        self.channel.close()?;
+        // TODO: Handle errors.
+        self.sender
+            .send(&grpc_rsp)
+            .expect("could not write gRPC response");
+        self.sender.close().expect("could not close channel");
         Ok(())
     }
 }
@@ -133,6 +142,23 @@ pub trait OakNode {
     fn invoke(&mut self, method: &str, req: &[u8], writer: ChannelResponseWriter);
 }
 
+struct GrpcRequestWrapper {
+    grpc_request: proto::grpc_encap::GrpcRequest,
+    sender: Sender,
+}
+
+impl crate::io::Decodable for GrpcRequestWrapper {
+    fn decode(bytes: &[u8], handles: &[Handle]) -> std::result::Result<Self, OakError> {
+        let grpc_request = protobuf::parse_from_bytes(bytes)?;
+        let handle = handles.get(0).ok_or(OakStatus::ERR_BAD_HANDLE)?;
+        let sender = Sender::new(*handle);
+        Ok(GrpcRequestWrapper {
+            grpc_request,
+            sender,
+        })
+    }
+}
+
 /// Perform a gRPC event loop for a Node.
 ///
 /// Invoking the given `node`'s [`invoke`] method for each incoming request that
@@ -142,47 +168,24 @@ pub trait OakNode {
 ///
 /// [`invoke`]: OakNode::invoke
 /// [`GrpcRequest`]: crate::proto::grpc_encap::GrpcRequest
-pub fn event_loop<T: OakNode>(mut node: T, grpc_in_handle: ReadHandle) -> i32 {
-    info!("start event loop for node with handle {:?}", grpc_in_handle);
-    if !grpc_in_handle.handle.is_valid() {
+pub fn event_loop<T: OakNode>(mut node: T, grpc_receiver: Receiver) -> i32 {
+    info!("start event loop for node with handle {:?}", grpc_receiver);
+    if !grpc_receiver.handle.is_valid() {
         return OakStatus::ERR_CHANNEL_CLOSED.value();
     }
     crate::set_panic_hook();
-
-    let read_handles = vec![grpc_in_handle];
-    let mut space = crate::new_handle_space(&read_handles);
-
     loop {
-        // Block until there is a message to read on an input channel.
-        crate::prep_handle_space(&mut space);
-        unsafe {
-            let status = oak_abi::wait_on_channels(space.as_mut_ptr(), read_handles.len() as u32);
-            match OakStatus::from_i32(status as i32) {
-                Some(OakStatus::OK) => (),
-                Some(err) => return err as i32,
-                None => return OakStatus::OAK_STATUS_UNSPECIFIED.value(),
-            }
-        }
-
-        let mut buf = Vec::<u8>::with_capacity(1024);
-        let mut handles = Vec::<Handle>::with_capacity(1);
-        crate::channel_read(grpc_in_handle, &mut buf, &mut handles);
-        if buf.is_empty() {
-            info!("no pending message; poll again");
-            continue;
-        }
-        if handles.is_empty() {
-            panic!("no response handle received alongside gRPC request")
-        }
-        let req: proto::grpc_encap::GrpcRequest =
-            protobuf::parse_from_bytes(&buf).expect("failed to parse GrpcRequest message");
+        let grpc_request_wrapper: GrpcRequestWrapper = grpc_receiver
+            .receive()
+            .expect("could not receive GrpcRequestWrapper");
+        let req = grpc_request_wrapper.grpc_request;
         if !req.last {
             panic!("Support for streaming requests not yet implemented");
         }
         node.invoke(
             &req.method_name,
             req.get_req_msg().value.as_slice(),
-            ChannelResponseWriter::new(WriteHandle { handle: handles[0] }),
+            ChannelResponseWriter::new(grpc_request_wrapper.sender),
         );
     }
 }

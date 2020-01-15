@@ -575,21 +575,11 @@ fn log_node_main(handle: Handle) -> i32 {
     if handle == oak_abi::INVALID_HANDLE {
         return OakStatus::ERR_BAD_HANDLE.value();
     }
-    let half = oak::ReadHandle {
+    let receiver = oak::io::Receiver {
         handle: oak::Handle::from_raw(handle),
     };
     loop {
-        if let Err(status) = oak::wait_on_channels(&[half]) {
-            return status.value();
-        }
-        let mut buf = Vec::<u8>::with_capacity(1024);
-        let mut handles = Vec::with_capacity(8);
-        oak::channel_read(half, &mut buf, &mut handles);
-        if buf.is_empty() {
-            debug!("no pending message; poll again");
-            continue;
-        }
-        let message = String::from_utf8_lossy(&buf);
-        info!("LOG: {}", message);
+        // let message: String = receiver.receive::<String>().unwrap();
+        // info!("LOG: {}", message);
     }
 }

@@ -17,11 +17,13 @@
 //! Helper library for accessing Oak storage services.
 
 use crate::grpc;
+use crate::io::{Receiver, Sender};
 use crate::proto::grpc_encap::{GrpcRequest, GrpcResponse};
 use crate::proto::storage_channel::{
     StorageChannelDeleteRequest, StorageChannelDeleteResponse, StorageChannelReadRequest,
     StorageChannelReadResponse, StorageChannelWriteRequest, StorageChannelWriteResponse,
 };
+use crate::{Handle, OakError, OakStatus};
 use log::info;
 use protobuf::{Message, ProtobufEnum};
 
@@ -31,7 +33,20 @@ pub const DEFAULT_CONFIG_NAME: &str = "storage";
 
 /// Local representation of the connection to an external storage service.
 pub struct Storage {
-    write_channel: crate::WriteHandle,
+    sender: Sender,
+}
+
+struct StorageRequestWrapper {
+    grpc_request: GrpcRequest,
+    receiver: Receiver,
+}
+
+impl crate::io::Encodable for &StorageRequestWrapper {
+    fn encode(&self) -> Result<(Vec<u8>, Vec<Handle>), OakError> {
+        let bytes = self.grpc_request.write_to_bytes()?;
+        let handles = vec![self.receiver.handle];
+        Ok((bytes, handles))
+    }
 }
 
 impl Storage {
@@ -45,18 +60,18 @@ impl Storage {
     /// node configuration.
     pub fn new(config: &str) -> Option<Storage> {
         // Create a channel and pass the read half to a fresh storage Node.
-        let (write_channel, read_channel) = match crate::channel_create() {
+        let (sender, receiver) = match crate::channel_create() {
             Ok(x) => x,
             Err(_e) => return None,
         };
-        if crate::node_create(config, read_channel) != crate::OakStatus::OK {
-            crate::channel_close(write_channel.handle);
-            crate::channel_close(read_channel.handle);
+        if crate::node_create(config, receiver) != crate::OakStatus::OK {
+            sender.close().unwrap();
+            receiver.close().unwrap();
             return None;
         }
 
-        crate::channel_close(read_channel.handle);
-        Some(Storage { write_channel })
+        receiver.close().unwrap();
+        Some(Storage { sender })
     }
 
     fn execute_operation<Req, Res>(
@@ -81,15 +96,13 @@ impl Storage {
         );
         operation_request
             .write_to_writer(&mut request_any.value)
-            .unwrap();
+            .expect("could not serialize storage operation request as `any`");
         let mut grpc_request = GrpcRequest::new();
         grpc_request.method_name = grpc_method_name.to_owned();
         grpc_request.set_req_msg(request_any);
-        let mut grpc_data = Vec::new();
-        grpc_request.write_to_writer(&mut grpc_data).unwrap();
 
         // Create an ephemeral channel for the response.
-        let (rsp_out, rsp_in) = match crate::channel_create() {
+        let (sender, receiver) = match crate::channel_create() {
             Ok(x) => x,
             Err(status) => {
                 return Err(grpc::build_status(
@@ -102,37 +115,31 @@ impl Storage {
             }
         };
 
-        crate::channel_write(self.write_channel, &grpc_data, &[rsp_out.handle]);
-        crate::channel_close(rsp_out.handle);
+        let storage_request_wrapper = StorageRequestWrapper {
+            grpc_request,
+            receiver,
+        };
 
-        // Block until there is a response available.
-        loop {
-            let wait_result = crate::wait_on_channels(&[rsp_in]).unwrap();
-            if wait_result[0] == crate::ChannelReadStatus::READ_READY {
-                break;
-            }
-        }
+        sender
+            .send(&storage_request_wrapper)
+            .expect("could not send storage operation request");
+        sender.close().expect("could not close channel");
 
-        let mut buffer = Vec::<u8>::with_capacity(256);
-        let mut handles = Vec::<crate::Handle>::with_capacity(1);
-        crate::channel_read(rsp_in, &mut buffer, &mut handles);
-        if !handles.is_empty() {
-            panic!("unexpected handles received alongside storage request")
-        }
-        let mut grpc_response: GrpcResponse =
-            protobuf::parse_from_reader(&mut &buffer[..]).unwrap();
+        let mut grpc_response: GrpcResponse = receiver
+            .receive()
+            .expect("could not receive storage operation response");
         info!(
             "StorageChannelResponse: {}",
             protobuf::text_format::print_to_string(&grpc_response)
         );
-        crate::channel_close(rsp_in.handle);
+        receiver.close().expect("could not close channel");
 
         let status = grpc_response.take_status();
         if status.code != 0 {
             Err(status)
         } else {
-            let response =
-                protobuf::parse_from_bytes(grpc_response.get_rsp_msg().value.as_slice()).unwrap();
+            let response = protobuf::parse_from_bytes(grpc_response.get_rsp_msg().value.as_slice())
+                .expect("could not parse storage operation response");
             Ok(response)
         }
     }

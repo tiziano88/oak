@@ -16,12 +16,15 @@
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
+use io::{Receiver, Sender};
 use log::{debug, error};
 use protobuf::ProtobufEnum;
-use serde::{Deserialize, Serialize};
 
 // Re-export ABI constants that are also visible as part of the SDK API.
 pub use oak_abi::{ChannelReadStatus, OakStatus};
+
+mod error;
+pub use error::OakError;
 
 pub mod grpc;
 pub mod io;
@@ -124,29 +127,13 @@ impl Handle {
     }
 }
 
-/// Wrapper for a handle to the read half of a channel.
-///
-/// For use when the underlying [`Handle`] is known to be for a receive half.
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadHandle {
-    pub handle: Handle,
-}
-
-/// Wrapper for a handle to the send half of a channel.
-///
-/// For use when the underlying [`Handle`] is known to be for a send half.
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WriteHandle {
-    pub handle: Handle,
-}
-
 // Build a chunk of memory that is suitable for passing to oak_abi::wait_on_channels,
 // holding the given collection of channel handles.
-fn new_handle_space(handles: &[ReadHandle]) -> Vec<u8> {
+fn new_handle_space(handles: &[Handle]) -> Vec<u8> {
     let mut space = Vec::with_capacity(oak_abi::SPACE_BYTES_PER_HANDLE * handles.len());
     for handle in handles {
         space
-            .write_u64::<byteorder::LittleEndian>(handle.handle.id)
+            .write_u64::<byteorder::LittleEndian>(handle.id)
             .unwrap();
         space.push(0x00);
     }
@@ -169,7 +156,7 @@ fn prep_handle_space(space: &mut [u8]) {
 /// This is a convenience wrapper around the [`oak_abi::wait_on_channels`] host
 /// function. This version is easier to use in Rust but is less efficient
 /// (because the notification space is re-created on each invocation).
-pub fn wait_on_channels(handles: &[ReadHandle]) -> Result<Vec<ChannelReadStatus>, OakStatus> {
+pub fn wait_on_channels(handles: &[Handle]) -> Result<Vec<ChannelReadStatus>, OakStatus> {
     let mut space = new_handle_space(handles);
     unsafe {
         let status = oak_abi::wait_on_channels(space.as_mut_ptr(), handles.len() as u32);
@@ -198,7 +185,7 @@ pub fn wait_on_channels(handles: &[ReadHandle]) -> Result<Vec<ChannelReadStatus>
 ///
 /// The provided vectors for received data and associated handles will be
 /// resized to accomodate the information in the message.
-pub fn channel_read(half: ReadHandle, buf: &mut Vec<u8>, handles: &mut Vec<Handle>) -> OakStatus {
+pub fn channel_read(handle: Handle, buf: &mut Vec<u8>, handles: &mut Vec<Handle>) -> OakStatus {
     // Try reading from the channel twice: first with provided vectors, then
     // with vectors that have been resized to meet size requirements.
 
@@ -210,7 +197,7 @@ pub fn channel_read(half: ReadHandle, buf: &mut Vec<u8>, handles: &mut Vec<Handl
         let mut actual_handle_count: u32 = 0;
         let status = OakStatus::from_i32(unsafe {
             oak_abi::channel_read(
-                half.handle.id,
+                handle.id,
                 buf.as_mut_ptr(),
                 buf.capacity(),
                 &mut actual_size,
@@ -274,19 +261,20 @@ pub fn channel_read(half: ReadHandle, buf: &mut Vec<u8>, handles: &mut Vec<Handl
 }
 
 /// Write a message to a channel.
-pub fn channel_write(half: WriteHandle, buf: &[u8], handles: &[Handle]) -> OakStatus {
+pub fn channel_write(handle: Handle, buf: &[u8], handles: &[Handle]) -> Result<(), OakStatus> {
     let handle_buf = Handle::pack(handles);
     match OakStatus::from_i32(unsafe {
         oak_abi::channel_write(
-            half.handle.id,
+            handle.id,
             buf.as_ptr(),
             buf.len(),
             handle_buf.as_ptr(),
             handles.len() as u32, // Number of handles, not bytes
         ) as i32
     }) {
-        Some(s) => s,
-        None => OakStatus::ERR_INTERNAL,
+        Some(OakStatus::OK) => Ok(()),
+        Some(s) => Err(s),
+        None => Err(OakStatus::ERR_INTERNAL),
     }
 }
 
@@ -294,49 +282,52 @@ pub fn channel_write(half: WriteHandle, buf: &[u8], handles: &[Handle]) -> OakSt
 ///
 /// On success, returns [`WriteHandle`] and a [`ReadHandle`] values for the
 /// write and read halves (respectively).
-pub fn channel_create() -> Result<(WriteHandle, ReadHandle), OakStatus> {
-    let mut write = WriteHandle {
+pub fn channel_create() -> Result<(Sender, Receiver), OakStatus> {
+    let mut sender = Sender {
         handle: Handle::invalid(),
     };
-    let mut read = ReadHandle {
+    let mut receiver = Receiver {
         handle: Handle::invalid(),
     };
     match OakStatus::from_i32(unsafe {
         oak_abi::channel_create(
-            &mut write.handle.id as *mut u64,
-            &mut read.handle.id as *mut u64,
+            &mut sender.handle.id as *mut u64,
+            &mut receiver.handle.id as *mut u64,
         ) as i32
     }) {
-        Some(OakStatus::OK) => Ok((write, read)),
-        Some(err) => Err(err),
+        Some(OakStatus::OK) => Ok((sender, receiver)),
+        Some(s) => Err(s),
         None => Err(OakStatus::OAK_STATUS_UNSPECIFIED),
     }
 }
 
 /// Close the specified channel [`Handle`].
-pub fn channel_close(handle: Handle) -> OakStatus {
+pub fn channel_close(handle: Handle) -> Result<(), OakStatus> {
     match OakStatus::from_i32(unsafe { oak_abi::channel_close(handle.id) as i32 }) {
-        Some(s) => s,
-        None => OakStatus::OAK_STATUS_UNSPECIFIED,
+        Some(OakStatus::OK) => Ok(()),
+        Some(s) => Err(s),
+        None => Err(OakStatus::OAK_STATUS_UNSPECIFIED),
     }
 }
 
 /// Create a new Node running the configuration identified by `config_name`,
 /// passing it the given handle.
-pub fn node_create(config_name: &str, half: ReadHandle) -> OakStatus {
+pub fn node_create(config_name: &str, receiver: Receiver) -> Result<(), OakStatus> {
     match OakStatus::from_i32(unsafe {
-        oak_abi::node_create(config_name.as_ptr(), config_name.len(), half.handle.id) as i32
+        oak_abi::node_create(config_name.as_ptr(), config_name.len(), receiver.handle.id) as i32
     }) {
-        Some(s) => s,
-        None => OakStatus::OAK_STATUS_UNSPECIFIED,
+        Some(OakStatus::OK) => Ok(()),
+        Some(s) => Err(s),
+        None => Err(OakStatus::OAK_STATUS_UNSPECIFIED),
     }
 }
 
 /// Fill a buffer with random data.
-pub fn random_get(buf: &mut [u8]) -> OakStatus {
+pub fn random_get(buf: &mut [u8]) -> Result< (), OakStatus> {
     match OakStatus::from_i32(unsafe { oak_abi::random_get(buf.as_mut_ptr(), buf.len()) as i32 }) {
-        Some(s) => s,
-        None => OakStatus::OAK_STATUS_UNSPECIFIED,
+        Some(OakStatus::OK) => Ok(()),
+        Some(s) => Err(s),
+        None => Err(OakStatus::OAK_STATUS_UNSPECIFIED),
     }
 }
 
