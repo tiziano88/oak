@@ -26,6 +26,11 @@ pub mod proto;
 /// These handles are used for all host function calls.
 pub type Handle = u64;
 
+/// Type for any entrypoint to a Node.
+///
+/// This should be as close as possible to the type used to define the FFI.
+pub trait NodeEntrypoint: Fn(u64) -> i32 {}
+
 /// Number of bytes needed per-handle for channel readiness notifications.
 ///
 /// The notification space consists of the channel handle (as a little-endian

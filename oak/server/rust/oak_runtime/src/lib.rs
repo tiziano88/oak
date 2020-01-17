@@ -18,7 +18,7 @@
 
 use log::{debug, error, info, warn};
 
-use oak_abi::{ChannelReadStatus, Handle, OakStatus};
+use oak_abi::{ChannelReadStatus, Handle, OakStatus, NodeEntrypoint};
 use proto::manager::NodeConfiguration_oneof_config_type;
 use protobuf::ProtobufEnum;
 use rand::Rng;
@@ -185,10 +185,10 @@ impl Drop for ChannelHalf {
     }
 }
 
-pub struct OakRuntime {
+pub struct OakRuntime<E : NodeEntrypoint> {
     termination_pending: bool,
     // Map name of Node config names to a test entrypoint function pointer.
-    entrypoints: HashMap<String, NodeMain>,
+    entrypoints: HashMap<String, Box<E>>,
     // Map name of Node config names to next index.
     next_index: HashMap<String, u32>,
     // Track a reference to the write half of the channel used for sending
@@ -205,14 +205,14 @@ struct OakNode {
 }
 
 // Encapsulate the information needed to start a new per-Node thread.
-pub struct NodeStartInfo {
-    pub entrypoint: NodeMain,
+pub struct NodeStartInfo<E:NodeEntrypoint> {
+    pub entrypoint: E,
     pub node_name: String,
     pub handle: Handle,
 }
 
-impl OakRuntime {
-    pub fn new(node_name: Option<&str>) -> OakRuntime {
+impl <E:NodeEntrypoint> OakRuntime<E> {
+    pub fn new(node_name: Option<&str>) -> OakRuntime<E> {
         let mut nodes = HashMap::new();
         if let Some(node_name) = node_name {
             // Create a single Node with the given name.
@@ -234,7 +234,7 @@ impl OakRuntime {
         self.termination_pending = value;
     }
 
-    fn entrypoint(&self, config: &str) -> Option<NodeMain> {
+    fn entrypoint(&self, config: &str) -> Option<E> {
         self.entrypoints.get(config).copied()
     }
 
@@ -251,8 +251,8 @@ impl OakRuntime {
     pub fn configure(
         &mut self,
         config: proto::manager::ApplicationConfiguration,
-        entrypoints: HashMap<String, NodeMain>,
-    ) -> Option<(String, NodeMain, Handle)> {
+        entrypoints: HashMap<String, E>,
+    ) -> Option<(String, E, Handle)> {
         self.set_termination_pending(false);
         self.nodes.clear();
         self.entrypoints = entrypoints;
@@ -264,7 +264,7 @@ impl OakRuntime {
                 }
                 Some(NodeConfiguration_oneof_config_type::log_config(_)) => {
                     self.entrypoints
-                        .insert(node_config.name.clone(), log_node_main);
+                        .insert(node_config.name.clone(), oak::wrap_main(log_node_main));
                 }
                 Some(NodeConfiguration_oneof_config_type::wasm_config(_)) => {
                     // Check that we have an entrypoint corresponding to this.
@@ -434,7 +434,7 @@ impl OakRuntime {
         node_name: String,
         config: &str,
         handle: Handle,
-    ) -> Result<NodeStartInfo, OakStatus> {
+    ) -> Result<NodeStartInfo<E>, OakStatus> {
         // First, find the code referred to by the config name.
         let entrypoint = match self.entrypoint(&config) {
             Some(e) => e,
@@ -567,22 +567,13 @@ impl OakNode {
     }
 }
 
-/// Expected type for the main entrypoint to a Node under test.
-pub type NodeMain = fn(Handle) -> Result<(), oak::OakStatus>;
-
 // Main loop function for a log pseudo-Node.
-fn log_node_main(handle: Handle) -> Result<(), oak::OakStatus> {
-    if handle == oak_abi::INVALID_HANDLE {
-        return Err(OakStatus::ERR_BAD_HANDLE);
-    }
-    let half = oak::ReadHandle {
-        handle: oak::Handle::from_raw(handle),
-    };
+fn log_node_main(handle: oak::ReadHandle) -> Result<(), oak::OakStatus> {
     loop {
-        oak::wait_on_channels(&[half])?;
+        oak::wait_on_channels(&[handle])?;
         let mut buf = Vec::<u8>::with_capacity(1024);
         let mut handles = Vec::with_capacity(8);
-        oak::channel_read(half, &mut buf, &mut handles).expect("could not read from channel");
+        oak::channel_read(handle, &mut buf, &mut handles).expect("could not read from channel");
         let message = String::from_utf8_lossy(&buf);
         info!("LOG: {}", message);
     }

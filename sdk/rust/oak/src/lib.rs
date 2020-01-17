@@ -357,6 +357,24 @@ pub fn result_from_status<T>(status: Option<OakStatus>, val: T) -> Result<T, Oak
     }
 }
 
+type NodeMain = fn(ReadHandle) -> Result<(), crate::OakStatus>;
+
+pub fn wrap_main(main: NodeMain) -> Box<dyn Fn(u64) -> i32> {
+    Box::new(move |handle: u64| {
+        let read_handle = ReadHandle {
+            handle: Handle::from_raw(handle),
+        };
+        // A panic in the Rust module code cannot safely pass through the FFI
+        // boundary, so catch any panics here and translate to an error return.
+        // https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-panics
+        std::panic::catch_unwind(|| main(read_handle))
+            .unwrap_or(Err(crate::OakStatus::ERR_INTERNAL))
+            .err()
+            .unwrap_or(crate::OakStatus::OK)
+            .value()
+    })
+}
+
 /// Install a panic hook that logs [panic information].
 ///
 /// Logs panic infomation to the logging channel, if one is set.
