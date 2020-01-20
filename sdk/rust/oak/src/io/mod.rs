@@ -24,10 +24,14 @@ mod encodable;
 mod receiver;
 mod sender;
 
+mod buffer;
+
 pub use decodable::Decodable;
 pub use encodable::Encodable;
 pub use receiver::Receiver;
 pub use sender::Sender;
+
+pub use buffer::Buffer;
 
 /// Map a non-OK [`OakStatus`] value to the nearest available [`std::io::Error`].
 ///
