@@ -23,6 +23,10 @@ pub mod google {
 pub mod oak {
     include!("oak_abi.rs");
 
+    pub mod application {
+        include!("oak.application.rs");
+    }
+
     pub mod label {
         include!("oak.label.rs");
     }

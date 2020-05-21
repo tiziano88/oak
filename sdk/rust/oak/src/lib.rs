@@ -516,6 +516,13 @@ pub fn run_event_loop<T: crate::io::Decodable, N: Node<T>>(
     }
 }
 
+pub fn read_initial_config_map(
+    handle: ReadHandle,
+) -> Result<oak_abi::proto::oak::application::ConfigMap, OakStatus> {
+    let receiver = crate::io::Receiver::new(handle);
+    receiver.receive().map_err(|err| OakStatus::ErrInternal)
+}
+
 /// Register a new Node entrypoint.
 ///
 /// This registers the entrypoint name and the expression that runs an event loop.

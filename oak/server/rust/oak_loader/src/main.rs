@@ -27,7 +27,13 @@
 use anyhow::anyhow;
 use core::str::FromStr;
 use log::{debug, info};
-use oak_runtime::{configure_and_run, proto::oak::application::ApplicationConfiguration};
+use oak_runtime::{
+    configure_and_run,
+    proto::oak::application::{
+        node_configuration::ConfigType::{GrpcClientConfig, GrpcServerConfig},
+        ApplicationConfiguration, ConfigMap,
+    },
+};
 use prost::Message;
 use std::{
     collections::HashMap,
@@ -42,11 +48,6 @@ use structopt::StructOpt;
 
 #[cfg(test)]
 mod tests;
-
-use oak_runtime::proto::oak::application::{
-    node_configuration::ConfigType::{GrpcClientConfig, GrpcServerConfig},
-    ConfigMap,
-};
 
 #[derive(StructOpt, Clone, Debug)]
 #[structopt(about = "Oak Loader")]
@@ -145,8 +146,6 @@ fn main() -> anyhow::Result<()> {
     let config_map = parse_config_map(&opt.config_files)?;
     // We only log the keys here, since the values may be secret.
     debug!("parsed config map entries: {:?}", config_map.items.keys());
-    // TODO(#689): Pass the `config_map` object to the Runtime instance, and make it available to
-    // the running Oak Application.
 
     // Load application configuration.
     let app_config_data = read_file(&opt.application)?;
@@ -193,6 +192,12 @@ fn main() -> anyhow::Result<()> {
         "initial node {:?} with write handle {:?}",
         runtime.node_id, initial_handle
     );
+
+    // Send the config map to the initial Node.
+    let initial_sender = oak_runtime::io::Sender::new(initial_handle);
+    initial_sender
+        .send(config_map, &runtime)
+        .map_err(|status| anyhow!("could not send initial message to node: {:?}", status))?;
 
     let done = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::SIGINT, Arc::clone(&done))?;

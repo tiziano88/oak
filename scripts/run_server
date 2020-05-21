@@ -81,6 +81,9 @@ fi
 if [[ "${server}" == "rust" ]]; then
   exec cargo run --release --target=x86_64-unknown-linux-musl --package=oak_loader -- \
     --application="${APPLICATION}" \
+    --config-files="grpc-tls-private-key=${SCRIPTS_DIR}/../examples/certs/local/local.key" \
+    --config-files="grpc-tls-certificate=${SCRIPTS_DIR}/../examples/certs/local/local.pem" \
+    --config-files="root-tls-certificate=${SCRIPTS_DIR}/../examples/certs/local/ca.pem" \
     --grpc-tls-private-key="${SCRIPTS_DIR}/../examples/certs/local/local.key" \
     --grpc-tls-certificate="${SCRIPTS_DIR}/../examples/certs/local/local.pem" \
     --root-tls-certificate="${SCRIPTS_DIR}/../examples/certs/local/ca.pem"

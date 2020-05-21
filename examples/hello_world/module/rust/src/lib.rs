@@ -34,8 +34,10 @@ oak::entrypoint!(oak_main => |in_channel| {
     oak::run_event_loop(dispatcher, in_channel);
 });
 
-oak::entrypoint!(grpc_oak_main => |_in_channel| {
+oak::entrypoint!(grpc_oak_main => |in_channel: oak::ReadHandle| {
     oak::logger::init_default();
+    in_channel.read();
+
     let node = Node {
         translator: grpc::client::Client::new("translator", "oak_main")
             .map(translator_common::TranslatorClient),
