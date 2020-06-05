@@ -18,6 +18,7 @@
 
 use crate::RuntimeProxy;
 use oak_abi::{proto::oak::application::ApplicationConfiguration, OakStatus};
+use slog::Logger;
 use tonic::transport::Certificate;
 
 /// Configures a [`RuntimeProxy`] from the given protobuf [`ApplicationConfiguration`] and begins
@@ -27,11 +28,12 @@ use tonic::transport::Certificate;
 /// send messages into the Runtime. Creating a new channel and passing the write [`oak_abi::Handle`]
 /// into the runtime will enable messages to be read back out from the [`RuntimeProxy`].
 pub fn configure_and_run(
+    log: Logger,
     application_configuration: ApplicationConfiguration,
     runtime_configuration: crate::RuntimeConfiguration,
     grpc_configuration: crate::GrpcConfiguration,
 ) -> Result<(RuntimeProxy, oak_abi::Handle), OakStatus> {
-    let proxy = RuntimeProxy::create_runtime(application_configuration, grpc_configuration);
+    let proxy = RuntimeProxy::create_runtime(log, application_configuration, grpc_configuration);
     let handle = proxy.start_runtime(runtime_configuration)?;
     Ok((proxy, handle))
 }

@@ -20,8 +20,8 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Body, Request, Response, Server,
 };
-use log::info;
 use prometheus::{Encoder, TextEncoder};
+use slog::{info, o, Logger};
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::runtime::Runtime;
@@ -43,7 +43,10 @@ impl std::fmt::Display for MetricsServerError {
 
 impl std::error::Error for MetricsServerError {}
 
-async fn handle_metrics_request(runtime: &Runtime) -> Result<Response<Body>, MetricsServerError> {
+async fn handle_metrics_request(
+    log: &Logger,
+    runtime: &Runtime,
+) -> Result<Response<Body>, MetricsServerError> {
     let encoder = TextEncoder::new();
     let metric_families = runtime.gather_metrics();
     let mut buffer = vec![];
@@ -51,7 +54,7 @@ async fn handle_metrics_request(runtime: &Runtime) -> Result<Response<Body>, Met
         MetricsServerError::EncodingError(format!("Could not encode metrics data: {}", e))
     })?;
 
-    info!("Metrics size: {}", buffer.len());
+    info!(log, "Metrics size: {}", buffer.len());
 
     Response::builder()
         .status(StatusCode::OK)
@@ -63,11 +66,12 @@ async fn handle_metrics_request(runtime: &Runtime) -> Result<Response<Body>, Met
 }
 
 async fn serve_metrics(
+    log: Logger,
     runtime: Arc<Runtime>,
     req: Request<Body>,
 ) -> Result<Response<Body>, MetricsServerError> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/metrics") => handle_metrics_request(&runtime).await,
+        (&Method::GET, "/metrics") => handle_metrics_request(&log, &runtime).await,
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from("Not Found!\n"))
@@ -76,6 +80,7 @@ async fn serve_metrics(
 }
 
 async fn make_server(
+    log: Logger,
     port: u16,
     runtime: Arc<Runtime>,
     notify_receiver: tokio::sync::oneshot::Receiver<()>,
@@ -84,12 +89,15 @@ async fn make_server(
 
     // A `Service` is needed for every connection, so this
     // creates one from the `serve_metrics` function.
+    let log_clone = log.clone();
     let make_service = make_service_fn(move |_conn| {
         let runtime = runtime.clone();
+        let log = log_clone.clone();
         async move {
+            let log = log.clone();
             Ok::<_, hyper::Error>(service_fn(move |req| {
                 let runtime = runtime.clone();
-                serve_metrics(runtime, req)
+                serve_metrics(log.clone(), runtime, req)
             }))
         }
     });
@@ -100,6 +108,7 @@ async fn make_server(
         let _ = notify_receiver.await;
     });
     info!(
+        log,
         "{:?}: Started metrics server on port {:?}",
         std::thread::current().id(),
         port
@@ -107,16 +116,17 @@ async fn make_server(
 
     // Run until asked to terminate...
     let result = graceful.await;
-    info!("metrics server terminated with {:?}", result);
+    info!(log, "metrics server terminated with {:?}", result);
 }
 
 // Start running a metrics server on the given port, running until the `notify_receiver` is
 // triggered.
 pub fn start_metrics_server(
+    log: Logger,
     port: u16,
     runtime: Arc<Runtime>,
     notify_receiver: tokio::sync::oneshot::Receiver<()>,
 ) {
     let mut tokio_runtime = tokio::runtime::Runtime::new().expect("Couldn't create Tokio runtime");
-    tokio_runtime.block_on(make_server(port, runtime, notify_receiver));
+    tokio_runtime.block_on(make_server(log, port, runtime, notify_receiver));
 }

@@ -23,9 +23,10 @@ use oak_abi::{
         node_configuration::ConfigType, ApplicationConfiguration, WebAssemblyConfiguration,
     },
 };
+use slog::Logger;
 use wat::{parse_file, parse_str};
 
-fn start_node(wasm_module: Vec<u8>, entrypoint_name: &str) -> Result<(), OakStatus> {
+fn start_node(log: Logger, wasm_module: Vec<u8>, entrypoint_name: &str) -> Result<(), OakStatus> {
     crate::runtime::tests::init_logging();
     let module_name = "oak_module";
     let application_configuration = ApplicationConfiguration {
@@ -33,7 +34,7 @@ fn start_node(wasm_module: Vec<u8>, entrypoint_name: &str) -> Result<(), OakStat
         initial_node_configuration: None,
     };
     let proxy =
-        RuntimeProxy::create_runtime(application_configuration, GrpcConfiguration::default());
+        RuntimeProxy::create_runtime(log, application_configuration, GrpcConfiguration::default());
     let (_write_handle, read_handle) = proxy.channel_create(&Label::public_untrusted())?;
 
     let result = proxy.node_create(

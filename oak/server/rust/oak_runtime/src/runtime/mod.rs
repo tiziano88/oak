@@ -25,7 +25,6 @@ use crate::{
 };
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering::SeqCst};
 use itertools::Itertools;
-use log::{debug, error, info, trace, warn};
 use oak_abi::{
     label::{Label, Tag},
     proto::oak::application::{ApplicationConfiguration, NodeConfiguration},
@@ -33,6 +32,7 @@ use oak_abi::{
 };
 use prometheus::proto::MetricFamily;
 use rand::RngCore;
+use slog::{debug, error, info, o, trace, warn, Logger};
 use std::{
     collections::{HashMap, HashSet},
     string::String,
@@ -55,8 +55,6 @@ pub use channel::{ChannelHalf, ChannelHalfDirection};
 pub use proxy::RuntimeProxy;
 
 struct NodeStopper {
-    node_name: String,
-
     /// Handle used for joining the Node thread.
     join_handle: JoinHandle<()>,
 
@@ -69,31 +67,31 @@ struct NodeStopper {
 
 impl NodeStopper {
     /// Sends a notification to the Node and joins its thread.
-    fn stop_node(self) -> thread::Result<()> {
-        let node_name = &self.node_name;
+    fn stop_node(self, log: &slog::Logger) -> thread::Result<()> {
+        info!(log, "stopping node");
         self.notify_sender
             .send(())
             // Notification errors are discarded since not all of the Nodes save
             // and use the [`oneshot::Receiver`].
             .unwrap_or_else(|()| {
-                debug!("{} already droppped `notify_receiver`.", node_name);
+                debug!(log, "already droppped `notify_receiver`");
             });
-        debug!("join thread for node {}...", self.node_name);
+        debug!(log, "join thread for node");
         let result = self.join_handle.join();
-        debug!("join thread for node {}...done", self.node_name);
+        debug!(log, "join thread for node...done");
         result
     }
 }
 
-impl std::fmt::Debug for NodeStopper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{{node_name='{}', join_handle={:?}, notify_sender={:?}}}",
-            self.node_name, self.join_handle, self.notify_sender,
-        )
-    }
-}
+// impl std::fmt::Debug for NodeStopper {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(
+//             f,
+//             "{{node_name='{}', join_handle={:?}, notify_sender={:?}}}",
+//             self.node_name, self.join_handle, self.notify_sender,
+//         )
+//     }
+// }
 
 struct NodeInfo {
     /// Name for the Node in debugging output.
@@ -147,8 +145,8 @@ impl std::fmt::Debug for NodeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "NodeInfo {{'{}', label={:?}, node_stopper={:?}, handles=[",
-            self.name, self.label, self.node_stopper,
+            "NodeInfo {{'{}', label={:?}, handles=[",
+            self.name, self.label,
         )?;
         write!(
             f,
@@ -180,29 +178,34 @@ pub enum ReadStatus {
 
 /// Information for managing an associated server.
 pub struct AuxServer {
-    pub name: String,
+    // pub name: String,
+    log: slog::Logger,
     pub join_handle: Option<JoinHandle<()>>,
     pub notify_sender: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl AuxServer {
     /// Start a new auxiliary server, running on its own thread.
-    fn new<F: FnOnce(u16, Arc<Runtime>, tokio::sync::oneshot::Receiver<()>) + 'static + Send>(
+    fn new<
+        F: FnOnce(Logger, u16, Arc<Runtime>, tokio::sync::oneshot::Receiver<()>) + 'static + Send,
+    >(
+        log: slog::Logger,
         name: &str,
         port: u16,
         runtime: Arc<Runtime>,
         f: F,
     ) -> Self {
         let (notify_sender, notify_receiver) = tokio::sync::oneshot::channel::<()>();
-        info!("spawning {} server on new thread", name);
+        info!(log, "spawning aux server on new thread");
+        let log_clone = log.clone();
         let join_handle = thread::Builder::new()
             .name(format!("{}-server", name))
-            .spawn(move || f(port, runtime, notify_receiver))
+            .spawn(move || f(log_clone, port, runtime, notify_receiver))
             .expect("failed to spawn introspection thread");
         AuxServer {
-            name: name.to_string(),
             join_handle: Some(join_handle),
             notify_sender: Some(notify_sender),
+            log,
         }
     }
 }
@@ -214,14 +217,14 @@ impl Drop for AuxServer {
         let join_handle = self.join_handle.take();
         let notify_sender = self.notify_sender.take();
         if let Some(notify_sender) = notify_sender {
-            info!("stopping {} server", self.name);
+            info!(self.log, "stopping aux server");
             // The auxiliary server may already have stopped, so ignore
             // errors when sending the stop notification.
             let _ = notify_sender.send(());
         }
         if let Some(join_handle) = join_handle {
             let result = join_handle.join();
-            info!("stopped {} server, result {:?}", self.name, result);
+            info!(self.log, "stopped aux server, result {:?}", result);
         }
     }
 }
@@ -242,6 +245,8 @@ pub struct Runtime {
 
     aux_servers: Mutex<Vec<AuxServer>>,
 
+    log: slog::Logger,
+
     pub metrics_data: Metrics,
 }
 
@@ -250,7 +255,7 @@ pub struct Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.stop();
-        info!("Runtime instance dropped");
+        info!(self.log, "Runtime instance dropped");
     }
 }
 
@@ -265,8 +270,8 @@ impl Runtime {
             let candidate = rand::thread_rng().next_u64();
             if node_info.abi_handles.get(&candidate).is_none() {
                 debug!(
-                    "{:?}: new ABI handle {} maps to {:?}",
-                    node_id, candidate, half
+                    self.log,
+                    "{:?}: new ABI handle {} maps to {:?}", node_id, candidate, half
                 );
                 node_info.abi_handles.insert(candidate, half);
                 return candidate;
@@ -295,7 +300,13 @@ impl Runtime {
             .abi_handles
             .get(&handle)
             .ok_or(OakStatus::ErrBadHandle)?;
-        trace!("{:?}: map ABI handle {} to {:?}", node_id, handle, half);
+        trace!(
+            self.log,
+            "{:?}: map ABI handle {} to {:?}",
+            node_id,
+            handle,
+            half
+        );
         Ok(half.clone())
     }
     /// Convert an ABI handle to an internal [`ChannelHalf`], but fail
@@ -349,7 +360,7 @@ impl Runtime {
 
     /// Signal termination to a [`Runtime`] and wait for its Node threads to terminate.
     fn stop(&self) {
-        info!("stopping runtime instance");
+        info!(self.log, "stopping runtime instance");
 
         // Terminate any running servers.
         self.aux_servers.lock().unwrap().drain(..);
@@ -369,11 +380,10 @@ impl Runtime {
         let node_stoppers = self.take_node_stoppers();
         for (node_id, node_stopper_opt) in node_stoppers {
             if let Some(node_stopper) = node_stopper_opt {
-                info!("stopping node {:?} ...", node_id);
-                if let Err(err) = node_stopper.stop_node() {
-                    error!("could not stop node {:?}: {:?}", node_id, err);
+                let log = self.log.new(o!("node_id" => format!("{:?}", node_id)));
+                if let Err(err) = node_stopper.stop_node(&log) {
+                    error!(log, "could not stop node: {:?}", err);
                 }
-                info!("stopping node {:?}...done", node_id);
             }
         }
     }
@@ -401,8 +411,8 @@ impl Runtime {
             let node_info = node_infos.get(node_id).unwrap();
             for (handle, half) in &node_info.abi_handles {
                 debug!(
-                    "waking waiters on {:?} handle {} => {:?}",
-                    node_id, handle, half
+                    self.log,
+                    "waking waiters on {:?} handle {} => {:?}", node_id, handle, half
                 );
                 half.wake_waiters();
             }
@@ -498,18 +508,27 @@ impl Runtime {
         // the Channel Label).
         let downgraded_source_label = self.get_node_downgraded_label(node_id, source_label);
         let target_label = self.get_node_label(node_id);
-        trace!("{:?}: original source label: {:?}?", node_id, source_label);
         trace!(
+            self.log,
+            "{:?}: original source label: {:?}?",
+            node_id,
+            source_label
+        );
+        trace!(
+            self.log,
             "{:?}: downgraded source label: {:?}?",
             node_id,
             downgraded_source_label
         );
-        trace!("{:?}: target label: {:?}?", node_id, target_label);
+        trace!(self.log, "{:?}: target label: {:?}?", node_id, target_label);
         if downgraded_source_label.flows_to(&target_label) {
-            trace!("{:?}: can read from {:?}", node_id, source_label);
+            trace!(self.log, "{:?}: can read from {:?}", node_id, source_label);
             Ok(())
         } else {
-            debug!("{:?}: cannot read from {:?}", node_id, source_label);
+            debug!(
+                self.log,
+                "{:?}: cannot read from {:?}", node_id, source_label
+            );
             Err(OakStatus::ErrPermissionDenied)
         }
     }
@@ -536,18 +555,27 @@ impl Runtime {
         // downgraded is the data inside the Node (protected by the Node Label).
         let source_label = self.get_node_label(node_id);
         let downgraded_source_label = self.get_node_downgraded_label(node_id, &source_label);
-        trace!("{:?}: original source label: {:?}?", node_id, source_label);
         trace!(
+            self.log,
+            "{:?}: original source label: {:?}?",
+            node_id,
+            source_label
+        );
+        trace!(
+            self.log,
             "{:?}: downgraded source label: {:?}?",
             node_id,
             downgraded_source_label
         );
-        trace!("{:?}: target label: {:?}?", node_id, target_label);
+        trace!(self.log, "{:?}: target label: {:?}?", node_id, target_label);
         if downgraded_source_label.flows_to(&target_label) {
-            trace!("{:?}: can write to {:?}", node_id, target_label);
+            trace!(self.log, "{:?}: can write to {:?}", node_id, target_label);
             Ok(())
         } else {
-            warn!("{:?}: cannot write to {:?}", node_id, target_label);
+            warn!(
+                self.log,
+                "{:?}: cannot write to {:?}", node_id, target_label
+            );
             Err(OakStatus::ErrPermissionDenied)
         }
     }
@@ -563,10 +591,15 @@ impl Runtime {
         self.validate_can_write_to_label(node_id, label)?;
         // First get a pair of `ChannelHalf` objects.
         let channel_id = self.next_channel_id.fetch_add(1, SeqCst);
-        let channel = Channel::new(channel_id, label);
-        let write_half = ChannelHalf::new(channel.clone(), ChannelHalfDirection::Write);
-        let read_half = ChannelHalf::new(channel, ChannelHalfDirection::Read);
+        let channel = Channel::new(self.log.clone(), channel_id, label);
+        let write_half = ChannelHalf::new(
+            self.log.clone(),
+            channel.clone(),
+            ChannelHalfDirection::Write,
+        );
+        let read_half = ChannelHalf::new(self.log.clone(), channel, ChannelHalfDirection::Read);
         trace!(
+            self.log,
             "{:?}: allocated channel with halves w={:?},r={:?}",
             node_id,
             write_half,
@@ -576,6 +609,7 @@ impl Runtime {
         let write_handle = self.new_abi_handle(node_id, write_half);
         let read_handle = self.new_abi_handle(node_id, read_half);
         trace!(
+            self.log,
             "{:?}: allocated handles w={}, r={} for channel",
             node_id,
             write_handle,
@@ -664,6 +698,7 @@ impl Runtime {
             }
 
             debug!(
+                self.log,
                 "{:?}: wait_on_channels: channels not ready, parking thread {:?}",
                 node_id,
                 thread::current()
@@ -672,6 +707,7 @@ impl Runtime {
             thread::park();
 
             debug!(
+                self.log,
                 "{:?}: wait_on_channels: thread {:?} re-woken",
                 node_id,
                 thread::current()
@@ -863,10 +899,11 @@ impl Runtime {
             node_info.abi_handles.keys().copied().collect()
         };
 
-        debug!(
-            "{:?}: remove_node_id() found open handles on exit: {:?}",
-            node_id, remaining_handles
-        );
+        // XXX
+        // debug!(
+        //     log,
+        //     "{:?}: remove_node_id() found open handles on exit: {:?}", node_id, remaining_handles
+        // );
 
         for handle in remaining_handles {
             self.channel_close(node_id, handle)
@@ -918,12 +955,13 @@ impl Runtime {
     /// to be given to a new Node instance.
     fn node_create(
         self: Arc<Self>,
+        log: &slog::Logger,
         node_id: NodeId,
         config: &NodeConfiguration,
         label: &Label,
         initial_handle: oak_abi::Handle,
     ) -> Result<(), OakStatus> {
-        info!("creating node with config: {:?}", config);
+        info!(log, "creating node"; "config" => ?config);
         if self.is_terminating() {
             return Err(OakStatus::ErrTerminated);
         }
@@ -931,7 +969,7 @@ impl Runtime {
 
         let reader = self.abi_to_read_half(node_id, initial_handle)?;
 
-        let new_node_proxy = self.clone().proxy_for_new_node();
+        let new_node_proxy = self.clone().proxy_for_new_node(log);
         let new_node_id = new_node_proxy.node_id;
         let new_node_name = format!("{}({})", config.name, new_node_id.0);
 
@@ -942,7 +980,7 @@ impl Runtime {
             &self.grpc_configuration,
         )
         .map_err(|err| {
-            warn!("could not create node: {:?}", err);
+            warn!(log, "could not create node"; "err" => ?err);
             OakStatus::ErrInvalidArgs
         })?;
 
@@ -954,10 +992,14 @@ impl Runtime {
             .new_abi_handle(new_node_proxy.node_id, reader);
 
         info!(
+            log,
             "{:?}: start node instance {:?} with privilege {:?}",
-            node_id, new_node_id, node_privilege
+            node_id,
+            new_node_id,
+            node_privilege
         );
         let node_stopper = self.clone().node_start_instance(
+            &log,
             &new_node_name,
             instance,
             new_node_proxy,
@@ -975,6 +1017,7 @@ impl Runtime {
     /// The `node_name` parameter is only used for diagnostic/debugging output.
     fn node_start_instance(
         self: Arc<Self>,
+        log: &slog::Logger,
         node_name: &str,
         node_instance: Box<dyn crate::node::Node>,
         node_proxy: RuntimeProxy,
@@ -1004,7 +1047,6 @@ impl Runtime {
         // Note: self has been moved into the thread running the closure.
 
         Ok(NodeStopper {
-            node_name: node_name.to_string(),
             join_handle: node_join_handle,
             notify_sender: node_notify_sender,
         })
@@ -1032,10 +1074,12 @@ impl Runtime {
 
     /// Create a [`RuntimeProxy`] instance for a new Node, creating the new [`NodeId`]
     /// value along the way.
-    fn proxy_for_new_node(self: Arc<Self>) -> RuntimeProxy {
+    fn proxy_for_new_node(self: Arc<Self>, log: &Logger) -> RuntimeProxy {
+        let node_id = self.new_node_id();
         RuntimeProxy {
+            log: log.new(o!("node_id" => format!("{:?}", node_id))),
             runtime: self.clone(),
-            node_id: self.new_node_id(),
+            node_id,
         }
     }
 

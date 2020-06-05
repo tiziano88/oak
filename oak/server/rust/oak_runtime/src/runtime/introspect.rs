@@ -19,8 +19,8 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Body, Error, Method, Request, Response, Server, StatusCode,
 };
-use log::info;
 use regex::Regex;
+use slog::{info, Logger};
 use std::{net::SocketAddr, sync::Arc};
 
 /// Wrap a string holding a Graphviz Dot graph description in an HTML template
@@ -136,13 +136,14 @@ fn handle_request(
 }
 
 async fn make_server(
+    log: Logger,
     port: u16,
     runtime: Arc<Runtime>,
     notify_receiver: tokio::sync::oneshot::Receiver<()>,
 ) {
     // Construct our SocketAddr to listen on...
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    info!("starting introspection server on {:?}", addr);
+    info!(log, "starting introspection server on {:?}", addr);
 
     // And a MakeService to handle each connection...
     let make_service = make_service_fn(move |_| {
@@ -167,16 +168,17 @@ async fn make_server(
 
     // And run until asked to terminate...
     let result = graceful.await;
-    info!("introspection server terminated with {:?}", result);
+    info!(log, "introspection server terminated with {:?}", result);
 }
 
 // Start running an introspection server on the given port, running until the `notify_receiver` is
 // triggered.
 pub fn serve(
+    log: Logger,
     port: u16,
     runtime: Arc<Runtime>,
     notify_receiver: tokio::sync::oneshot::Receiver<()>,
 ) {
     let mut tokio_runtime = tokio::runtime::Runtime::new().expect("Couldn't create Tokio runtime");
-    tokio_runtime.block_on(make_server(port, runtime, notify_receiver));
+    tokio_runtime.block_on(make_server(log, port, runtime, notify_receiver));
 }

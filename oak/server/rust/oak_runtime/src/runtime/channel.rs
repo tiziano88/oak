@@ -15,8 +15,8 @@
 //
 
 use crate::{message::Message, runtime::graph::DotIdentifier};
-use log::debug;
 use oak_abi::OakStatus;
+use slog::{debug, Logger};
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
@@ -48,6 +48,8 @@ type WaitingThreads = Mutex<HashMap<ThreadId, Weak<Thread>>>;
 pub struct Channel {
     // An internal identifier for this channel. Purely for disambiguation in debugging output.
     id: ChannelId,
+
+    log: Logger,
 
     pub messages: RwLock<Messages>,
 
@@ -85,6 +87,7 @@ impl std::fmt::Debug for Channel {
 
 /// A reference to one half of a [`Channel`].
 pub struct ChannelHalf {
+    log: Logger,
     channel: Arc<Channel>,
     pub direction: ChannelHalfDirection,
 }
@@ -92,12 +95,16 @@ pub struct ChannelHalf {
 impl ChannelHalf {
     /// Constructor for [`ChannelHalf`] keeps the underlying [`Channel`]'s reader/writer count
     /// up-to-date.
-    pub fn new(channel: Arc<Channel>, direction: ChannelHalfDirection) -> Self {
+    pub fn new(log: Logger, channel: Arc<Channel>, direction: ChannelHalfDirection) -> Self {
         match direction {
             ChannelHalfDirection::Write => channel.inc_writer_count(),
             ChannelHalfDirection::Read => channel.inc_reader_count(),
         };
-        ChannelHalf { channel, direction }
+        ChannelHalf {
+            log,
+            channel,
+            direction,
+        }
     }
 
     /// Get read-only access to the channel's messages.  For debugging/introspection
@@ -116,7 +123,7 @@ impl ChannelHalf {
 /// in sync.
 impl Clone for ChannelHalf {
     fn clone(&self) -> Self {
-        ChannelHalf::new(self.channel.clone(), self.direction)
+        ChannelHalf::new(self.log.clone(), self.channel.clone(), self.direction)
     }
 }
 
@@ -132,8 +139,8 @@ impl Drop for ChannelHalf {
             // This was the last writer to the channel: wake any waiters so they
             // can be aware that the channel is orphaned.
             debug!(
-                "last writer for channel {} gone, wake waiters",
-                self.channel.id
+                self.log,
+                "last writer for channel {} gone, wake waiters", self.channel.id
             );
             self.wake_waiters();
         }
@@ -208,7 +215,7 @@ impl DotIdentifier for ChannelId {
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        debug!("dropping Channel object {:?}", self);
+        debug!(self.log, "dropping Channel object {:?}", self);
         // There should be no waiters for this channel (a waiting Node would have
         // to have a `Handle` to wait on, which would be a reference that pins this
         // channel to existence) so no need to `wake_waiters()`.
@@ -218,9 +225,10 @@ impl Drop for Channel {
 }
 
 impl Channel {
-    pub fn new(id: ChannelId, label: &oak_abi::label::Label) -> Arc<Channel> {
-        debug!("create new Channel object with ID {}", id);
+    pub fn new(log: Logger, id: ChannelId, label: &oak_abi::label::Label) -> Arc<Channel> {
+        debug!(log, "create new Channel object with ID {}", id);
         Arc::new(Channel {
+            log,
             id,
             messages: RwLock::new(Messages::new()),
             writer_count: AtomicU64::new(0),

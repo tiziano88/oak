@@ -28,7 +28,6 @@
 
 use anyhow::anyhow;
 use core::str::FromStr;
-use log::{debug, error, info};
 use oak_abi::{
     proto::oak::application::{ApplicationConfiguration, ConfigMap},
     Handle,
@@ -40,6 +39,7 @@ use oak_runtime::{
     RuntimeProxy,
 };
 use prost::Message;
+use slog::{debug, error, info, o, Drain};
 use std::{
     collections::HashMap,
     fs::{read_to_string, File},
@@ -163,17 +163,31 @@ fn send_config_map(
 
 /// Main execution point for the Oak loader.
 fn main() -> anyhow::Result<()> {
+    // slog_stdlog::init();
+
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
+    // let drain = slog_term::FullFormat::new(decorator).build().fuse();
+    let drain = slog_async::Async::new(drain).chan_size(1024).build().fuse();
+    let log = slog::Logger::root(drain, o!());
+
+    slog::info!(log, "Logging ready!");
+
     if cfg!(feature = "oak_debug") {
-        env_logger::init();
+        // env_logger::init();
     } else {
         eprintln!("No debugging output configured at build time");
     }
     let opt = Opt::from_args();
-    debug!("parsed opts: {:?}", opt);
+    debug!(log, "parsed opts: {:?}", opt);
 
     let config_map = parse_config_map(&opt.config_files)?;
     // We only log the keys here, since the values may be secret.
-    debug!("parsed config map entries: {:?}", config_map.items.keys());
+    debug!(
+        log,
+        "parsed config map entries: {:?}",
+        config_map.items.keys()
+    );
     // TODO(#689): Pass the `config_map` object to the Runtime instance, and make it available to
     // the running Oak Application.
 
@@ -222,24 +236,29 @@ fn main() -> anyhow::Result<()> {
     };
 
     // Start the Runtime from the given config.
-    info!("starting Runtime, config {:?}", runtime_configuration);
+    info!(log, "starting Runtime, config {:?}", runtime_configuration);
     let (runtime, initial_handle) = configure_and_run(
+        log.clone(),
         application_configuration,
         runtime_configuration,
         grpc_configuration,
     )
     .map_err(|status| anyhow!("could not start runtime, status: {:?}", status))?;
     info!(
-        "initial node {:?} with write handle {:?}",
-        runtime.node_id, initial_handle
+        log,
+        "initial node";
+        "node_id" => ?runtime.node_id,
+        "initial_handle" => initial_handle,
     );
 
     // Pass in the config map over the initial channel.
     send_config_map(config_map, &runtime, initial_handle)?;
     if let Err(err) = runtime.channel_close(initial_handle) {
         error!(
-            "Failed to close initial handle {:?}: {:?}",
-            initial_handle, err
+            log,
+            "Failed to close initial handle";
+            "initial_handle" => initial_handle,
+            "err" => ?err
         );
     }
 
@@ -256,9 +275,9 @@ fn main() -> anyhow::Result<()> {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    info!("stop Runtime");
+    info!(log, "stop Runtime");
     runtime.stop_runtime();
 
-    info!("Runtime stopped");
+    info!(log, "Runtime stopped");
     Ok(())
 }

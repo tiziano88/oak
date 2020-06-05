@@ -25,7 +25,7 @@ hyper = "*"
 itertools = "*"
 jsonwebtoken = "*"
 lazy_static = "*"
-log = { version = "*" }
+log = "*"
 maplit = "*"
 oak_abi = "=0.1.0"
 prometheus = { version = "0.8", features = [
@@ -41,6 +41,9 @@ rustls = "*"
 serde = "*"
 serde_json = "*"
 sha2 = "*"
+slog-async = "*"
+slog-term = "*"
+slog = "*"
 tokio = { version = "*", features = [
   "dns",
   "io-driver",

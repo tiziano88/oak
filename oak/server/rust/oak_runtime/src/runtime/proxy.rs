@@ -27,12 +27,12 @@ use crate::{
     GrpcConfiguration,
 };
 use core::sync::atomic::{AtomicBool, AtomicU64};
-use log::debug;
 use oak_abi::{
     label::Label,
     proto::oak::application::{ApplicationConfiguration, NodeConfiguration},
     ChannelReadStatus, OakStatus,
 };
+use slog::{debug, o, Logger};
 use std::{
     collections::HashMap,
     string::String,
@@ -56,12 +56,14 @@ use std::{
 pub struct RuntimeProxy {
     pub(super) runtime: Arc<Runtime>,
     pub node_id: NodeId,
+    pub log: Logger,
 }
 
 // Methods on `RuntimeProxy` for managing the core `Runtime` instance.
 impl RuntimeProxy {
     /// Creates a [`Runtime`] instance with a single initial Node configured, and no channels.
     pub fn create_runtime(
+        log: Logger,
         application_configuration: ApplicationConfiguration,
         grpc_configuration: GrpcConfiguration,
     ) -> RuntimeProxy {
@@ -76,10 +78,11 @@ impl RuntimeProxy {
             next_node_id: AtomicU64::new(0),
 
             aux_servers: Mutex::new(Vec::new()),
+            log: log.clone(),
 
             metrics_data: Metrics::new(),
         });
-        let proxy = runtime.proxy_for_new_node();
+        let proxy = runtime.proxy_for_new_node(&log);
         proxy.runtime.node_configure_instance(
             proxy.node_id,
             "implicit.initial",
@@ -113,12 +116,14 @@ impl RuntimeProxy {
             .set(1);
 
         if cfg!(feature = "oak_debug") {
+            let log = self.runtime.log.new(o!("aux_server" => "introspect"));
             if let Some(port) = runtime_configuration.introspect_port {
                 self.runtime
                     .aux_servers
                     .lock()
                     .unwrap()
                     .push(AuxServer::new(
+                        log,
                         "introspect",
                         port,
                         self.runtime.clone(),
@@ -127,11 +132,13 @@ impl RuntimeProxy {
             }
         }
         if let Some(port) = runtime_configuration.metrics_port {
+            let log = self.runtime.log.new(o!("aux_server" => "metrics"));
             self.runtime
                 .aux_servers
                 .lock()
                 .unwrap()
                 .push(AuxServer::new(
+                    log,
                     "metrics",
                     port,
                     self.runtime.clone(),
@@ -143,8 +150,8 @@ impl RuntimeProxy {
         // outside world to the entry point Node.
         let (write_handle, read_handle) = self.channel_create(&Label::public_untrusted())?;
         debug!(
-            "{:?}: created initial channel ({}, {})",
-            self.node_id, write_handle, read_handle,
+            self.runtime.log,
+            "{:?}: created initial channel ({}, {})", self.node_id, write_handle, read_handle,
         );
 
         self.node_create(
@@ -172,8 +179,9 @@ impl RuntimeProxy {
     }
 
     /// Create a RuntimeProxy instance that acts as a proxy for the specified NodeId.
-    pub fn new_for_node(&self, node_id: NodeId) -> Self {
+    pub fn new_for_node(&self, log: &Logger, node_id: NodeId) -> Self {
         RuntimeProxy {
+            log: log.new(o!("node_id" => format!("{:?}", node_id))),
             runtime: self.runtime.clone(),
             node_id,
         }
@@ -190,14 +198,17 @@ impl RuntimeProxy {
         label: &Label,
         initial_handle: oak_abi::Handle,
     ) -> Result<(), OakStatus> {
-        debug!("{:?}: node_create({:?}, {:?})", self.node_id, config, label);
-        let result = self
-            .runtime
-            .clone()
-            .node_create(self.node_id, config, label, initial_handle);
-        debug!(
-            "{:?}: node_create({:?}, {:?}) -> {:?}",
-            self.node_id, config, label, result
+        slog::warn!(self.log, "node_create"; "config" => ?config, "label" => ?label);
+        let result = self.runtime.clone().node_create(
+            &self.log,
+            self.node_id,
+            config,
+            label,
+            initial_handle,
+        );
+        slog::warn!(
+            self.log,
+            "node_create"; "config" => ?config, "label" => ?label, "result" => ?result
         );
         result
     }
@@ -207,22 +218,19 @@ impl RuntimeProxy {
         &self,
         label: &Label,
     ) -> Result<(oak_abi::Handle, oak_abi::Handle), OakStatus> {
-        debug!("{:?}: channel_create({:?})", self.node_id, label);
+        debug!(self.log, "channel_create({:?})", label);
         let result = self.runtime.channel_create(self.node_id, label);
-        debug!(
-            "{:?}: channel_create({:?}) -> {:?}",
-            self.node_id, label, result
-        );
+        debug!(self.log, "channel_create({:?}) -> {:?}", label, result);
         result
     }
 
     /// See [`Runtime::channel_close`].
     pub fn channel_close(&self, handle: oak_abi::Handle) -> Result<(), OakStatus> {
-        debug!("{:?}: channel_close({})", self.node_id, handle);
+        debug!(self.log, "{:?}: channel_close({})", self.node_id, handle);
         let result = self.runtime.channel_close(self.node_id, handle);
         debug!(
-            "{:?}: channel_close({}) -> {:?}",
-            self.node_id, handle, result
+            self.log,
+            "{:?}: channel_close({}) -> {:?}", self.node_id, handle, result
         );
         result
     }
@@ -233,12 +241,14 @@ impl RuntimeProxy {
         read_handles: &[oak_abi::Handle],
     ) -> Result<Vec<ChannelReadStatus>, OakStatus> {
         debug!(
+            self.log,
             "{:?}: wait_on_channels(count={})",
             self.node_id,
             read_handles.len()
         );
         let result = self.runtime.wait_on_channels(self.node_id, read_handles);
         debug!(
+            self.log,
             "{:?}: wait_on_channels(count={}) -> {:?}",
             self.node_id,
             read_handles.len(),
@@ -254,13 +264,13 @@ impl RuntimeProxy {
         msg: NodeMessage,
     ) -> Result<(), OakStatus> {
         debug!(
-            "{:?}: channel_write({}, {:?})",
-            self.node_id, write_handle, msg
+            self.log,
+            "{:?}: channel_write({}, {:?})", self.node_id, write_handle, msg
         );
         let result = self.runtime.channel_write(self.node_id, write_handle, msg);
         debug!(
-            "{:?}: channel_write({}, ...) -> {:?}",
-            self.node_id, write_handle, result
+            self.log,
+            "{:?}: channel_write({}, ...) -> {:?}", self.node_id, write_handle, result
         );
         result
     }
@@ -270,11 +280,14 @@ impl RuntimeProxy {
         &self,
         read_handle: oak_abi::Handle,
     ) -> Result<Option<NodeMessage>, OakStatus> {
-        debug!("{:?}: channel_read({})", self.node_id, read_handle,);
+        debug!(
+            self.log,
+            "{:?}: channel_read({})", self.node_id, read_handle,
+        );
         let result = self.runtime.channel_read(self.node_id, read_handle);
         debug!(
-            "{:?}: channel_read({}) -> {:?}",
-            self.node_id, read_handle, result
+            self.log,
+            "{:?}: channel_read({}) -> {:?}", self.node_id, read_handle, result
         );
         result
     }
@@ -287,8 +300,12 @@ impl RuntimeProxy {
         handles_capacity: usize,
     ) -> Result<Option<NodeReadStatus>, OakStatus> {
         debug!(
+            self.log,
             "{:?}: channel_try_read({}, bytes_capacity={}, handles_capacity={})",
-            self.node_id, read_handle, bytes_capacity, handles_capacity
+            self.node_id,
+            read_handle,
+            bytes_capacity,
+            handles_capacity
         );
         let result = self.runtime.channel_try_read_message(
             self.node_id,
@@ -297,8 +314,13 @@ impl RuntimeProxy {
             handles_capacity,
         );
         debug!(
+            self.log,
             "{:?}: channel_try_read({}, bytes_capacity={}, handles_capacity={}) -> {:?}",
-            self.node_id, read_handle, bytes_capacity, handles_capacity, result
+            self.node_id,
+            read_handle,
+            bytes_capacity,
+            handles_capacity,
+            result
         );
         result
     }
