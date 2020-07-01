@@ -42,7 +42,7 @@ use proto::{
     GetDatabaseEntryResponse, ListDatabaseEntriesRequest,
 };
 
-const MODULE_CONFIG_NAME: &str = "database_proxy";
+const MODULE_WASM_FILE_NAME: &str = "database_proxy.wasm";
 const MODULE_ENTRYPOINT_NAME: &str = "database_proxy_main";
 
 /// Expected number of database entries per request.
@@ -50,7 +50,7 @@ const DATABASE_PAGE_SIZE: u32 = 5;
 
 pub fn get_database_entry(id: &str, database_url: &str) -> grpc::Result<DatabaseEntry> {
     let client = oak::grpc::client::Client::new_with_label(
-        &oak::node_config::wasm(MODULE_CONFIG_NAME, MODULE_ENTRYPOINT_NAME),
+        &oak::node_config::wasm(MODULE_WASM_FILE_NAME, MODULE_ENTRYPOINT_NAME),
         &Label::public_untrusted(),
     )
     .map(DatabaseProxyClient)
