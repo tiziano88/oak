@@ -349,6 +349,7 @@ impl Runtime {
     }
 
     /// Signal termination to a [`Runtime`] and wait for its Node threads to terminate.
+    #[tracing::instrument(skip(self))]
     pub fn stop(&self) {
         info!("stopping runtime instance");
 
@@ -392,6 +393,7 @@ impl Runtime {
     }
 
     /// Notify all Nodes that are waiting on any channels to wake up.
+    #[tracing::instrument(skip(self))]
     fn notify_all_waiters(&self) {
         // Hold the write lock and wake up any Node threads blocked on a `Channel`.
         let node_infos = self
@@ -414,6 +416,7 @@ impl Runtime {
     /// the scope of holding the lock on [`Runtime::node_infos`].
     ///
     /// Panics if `node_id` is invalid.
+    #[tracing::instrument(skip(self))]
     fn get_node_label(&self, node_id: NodeId) -> Label {
         let node_infos = self
             .node_infos
@@ -426,6 +429,7 @@ impl Runtime {
     /// Returns the least restrictive (i.e. least confidential, most trusted) label that this Node
     /// may downgrade `initial_label` to. This takes into account all the [downgrade
     /// privilege](NodeInfo::privilege) that the node possesses.
+    #[tracing::instrument(skip(self))]
     fn get_node_downgraded_label(&self, node_id: NodeId, initial_label: &Label) -> Label {
         // Retrieve the set of tags that the node may downgrade.
         let node_privilege = self.get_node_privilege(node_id);
@@ -452,6 +456,7 @@ impl Runtime {
     }
 
     /// Returns a clone of the [`NodePrivilege`] of the provided Node.
+    #[tracing::instrument(skip(self))]
     fn get_node_privilege(&self, node_id: NodeId) -> NodePrivilege {
         let node_infos = self
             .node_infos
@@ -477,6 +482,7 @@ impl Runtime {
 
     /// Returns whether the given Node is allowed to read from the provided channel read half,
     /// according to their respective [`Label`]s.
+    #[tracing::instrument(skip(self))]
     fn validate_can_read_from_channel(
         &self,
         node_id: NodeId,
@@ -489,6 +495,7 @@ impl Runtime {
     /// Returns whether the given Node is allowed to read from an entity with the provided
     /// [`Label`], taking into account all the [downgrade privilege](NodeInfo::privilege) the Node
     /// possesses.
+    #[tracing::instrument(skip(self))]
     fn validate_can_read_from_label(
         &self,
         node_id: NodeId,
@@ -517,6 +524,7 @@ impl Runtime {
 
     /// Returns whether the given Node is allowed to write to the provided channel write half,
     /// according to their respective [`Label`]s.
+    #[tracing::instrument(skip(self))]
     fn validate_can_write_to_channel(
         &self,
         node_id: NodeId,
@@ -528,6 +536,7 @@ impl Runtime {
 
     /// Returns whether the given Node is allowed to write to an entity with the provided [`Label`],
     /// taking into account all the [downgrade privilege](NodeInfo::privilege) the Node possesses.
+    #[tracing::instrument(skip(self))]
     fn validate_can_write_to_label(
         &self,
         node_id: NodeId,
@@ -556,6 +565,7 @@ impl Runtime {
     /// Creates a new [`Channel`] and returns a `(writer, reader)` pair of `oak_abi::Handle`s.
     ///
     /// [`Channel`]: crate::runtime::channel::Channel
+    #[tracing::instrument(skip(self))]
     fn channel_create(
         &self,
         node_id: NodeId,
@@ -597,6 +607,7 @@ impl Runtime {
     }
 
     /// Reads the readable statuses for a slice of `ChannelHalf`s.
+    #[tracing::instrument(skip(self))]
     fn readers_statuses(&self, node_id: NodeId, readers: &[ChannelHalf]) -> Vec<ChannelReadStatus> {
         readers
             .iter()
@@ -626,6 +637,7 @@ impl Runtime {
     /// [`wait_on_channels`](https://github.com/project-oak/oak/blob/main/docs/abi.md#wait_on_channels).
     ///
     /// [`Runtime`]: crate::runtime::Runtime
+    #[tracing::instrument(skip(self))]
     fn wait_on_channels(
         &self,
         node_id: NodeId,
@@ -694,6 +706,7 @@ impl Runtime {
 
     /// Write a message to a channel. Fails with [`OakStatus::ErrChannelClosed`] if the underlying
     /// channel has been orphaned.
+    #[tracing::instrument(skip(self))]
     fn channel_write(
         &self,
         node_id: NodeId,
@@ -730,6 +743,7 @@ impl Runtime {
 
     /// Read a message from a channel. Fails with [`OakStatus::ErrChannelClosed`] if
     /// the underlying channel is empty and has been orphaned.
+    #[tracing::instrument(skip(self))]
     fn channel_read(
         &self,
         node_id: NodeId,
@@ -763,6 +777,7 @@ impl Runtime {
     ///   from the channel.
     /// - `Err`([`OakStatus::ErrBadHandle`]) if the input handle does not indicate the read half of
     ///   a channel.
+    #[tracing::instrument(skip(self))]
     fn channel_status(
         &self,
         node_id: NodeId,
@@ -791,6 +806,7 @@ impl Runtime {
     /// `Some(NodeReadStatus::NeedsCapacity(needed_bytes_capacity,needed_handles_capacity))`. Does
     /// not guarantee that the next call will succeed after capacity adjustments as another Node
     /// may have read the original message.
+    #[tracing::instrument(skip(self))]
     fn channel_try_read_message(
         &self,
         node_id: NodeId,
@@ -853,6 +869,7 @@ impl Runtime {
     }
 
     /// Close an [`oak_abi::Handle`], potentially orphaning the underlying [`channel::Channel`].
+    #[tracing::instrument(skip(self))]
     fn channel_close(&self, node_id: NodeId, handle: oak_abi::Handle) -> Result<(), OakStatus> {
         // Remove the ABI handle -> half mapping; half will be dropped at end of scope.
         self.drop_abi_handle(node_id, handle)?;
@@ -865,6 +882,7 @@ impl Runtime {
     }
 
     /// Remove a Node by [`NodeId`] from the [`Runtime`].
+    #[tracing::instrument(skip(self))]
     fn remove_node_id(&self, node_id: NodeId) {
         // Close any remaining handles
         let remaining_handles: Vec<_> = {
@@ -928,6 +946,7 @@ impl Runtime {
     /// This method is defined on [`Arc`] and not [`Runtime`] itself, so that
     /// the [`Arc`] can clone itself and be included in a [`RuntimeProxy`] object
     /// to be given to a new Node instance.
+    #[tracing::instrument(skip(self))]
     fn node_create(
         self: Arc<Self>,
         node_id: NodeId,
@@ -991,6 +1010,7 @@ impl Runtime {
 
     /// Starts running a newly created Node instance on a new thread.
     /// The `node_name` parameter is only used for diagnostic/debugging output.
+    #[tracing::instrument(skip(self, node_instance, node_proxy))]
     fn node_start_instance(
         self: Arc<Self>,
         node_name: &str,

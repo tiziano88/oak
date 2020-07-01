@@ -88,6 +88,7 @@ impl RuntimeProxy {
     ///
     /// Returns a writable [`oak_abi::Handle`] to send messages into the initial Node created from
     /// the configuration.
+    #[tracing::instrument(skip(self, runtime_configuration))]
     pub fn start_runtime(
         &self,
         runtime_configuration: crate::RuntimeConfiguration,

@@ -1142,6 +1142,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tracing",
  "wasmi",
 ]
 

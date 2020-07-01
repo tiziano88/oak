@@ -50,6 +50,7 @@ tokio = { version = "*", features = [
   "udp"
 ] }
 tonic = { version = "*", features = ["tls"] }
+tracing = "*"
 wasmi = { version = "*", default-features = false, features = ["core"] }
 
 [dev-dependencies]

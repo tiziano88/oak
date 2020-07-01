@@ -156,7 +156,45 @@ fn get_default_root_tls_certs() -> anyhow::Result<String> {
 
 /// Main execution point for the Oak loader.
 fn main() -> anyhow::Result<()> {
+    // tracing_log::LogTracer::init().expect("c");
+    // a builder for `FmtSubscriber`.
+
+    /*
+    use opentelemetry::api::trace::provider::Provider;
+    use tracing_subscriber::layer::SubscriberExt;
+    // Create a jaeger exporter for a `trace-demo` service.
+    let exporter = opentelemetry_jaeger::Exporter::builder()
+        .with_agent_endpoint("127.0.0.1:6831".parse().unwrap())
+        .with_process(opentelemetry_jaeger::Process {
+            service_name: "oak_loader".to_string(),
+            tags: Vec::new(),
+        })
+        .init()
+        .expect("Error initializing Jaeger exporter");
+    // Build a provider from the jaeger exporter that always samples.
+    let provider = opentelemetry::sdk::Provider::builder()
+        .with_simple_exporter(exporter)
+        .with_config(opentelemetry::sdk::Config {
+            default_sampler: Box::new(opentelemetry::sdk::Sampler::Always),
+            ..Default::default()
+        })
+        .build();
+    let tracer = provider.get_tracer("oak");
+    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    let subscriber = tracing_subscriber::Registry::default().with(otel_layer);
+    tracing::subscriber::set_global_default(subscriber).expect("no global subscriber has been set");
+    */
+
     if cfg!(feature = "oak_debug") {
+        // use tracing_subscriber::prelude::*;
+        // let fmt_layer = tracing_subscriber::fmt::layer().with_target(true);
+        // let filter_layer = tracing_subscriber::EnvFilter::from_default_env()
+        //     .add_directive("tracing::span".parse()?);
+        // tracing_subscriber::registry()
+        //     .with(filter_layer)
+        //     .with(fmt_layer)
+        //     .init();
         env_logger::init();
     } else {
         eprintln!("No debugging output configured at build time");

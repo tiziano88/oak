@@ -18,11 +18,17 @@ env_logger = "*"
 log = "*"
 oak_runtime = "=0.1.0"
 oak_abi = "=0.1.0"
+opentelemetry = "*"
+opentelemetry-jaeger = "*"
 prost = "*"
 rustls = "*"
 signal-hook = "*"
 structopt = "*"
 tonic = { version = "*", features = ["tls"] }
+tracing = "*"
+tracing-opentelemetry = "*"
+tracing-subscriber = "*"
+tracing-log = "*"
 
 [dev-dependencies]
 maplit = "*"

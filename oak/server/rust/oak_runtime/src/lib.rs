@@ -45,7 +45,7 @@ pub use runtime::Runtime;
 
 /// Configuration options that govern the behaviour of the Runtime and the Oak Application running
 /// inside it.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct RuntimeConfiguration {
     /// Port to run a metrics server on, if provided.
     pub metrics_port: Option<u16>,
@@ -60,8 +60,6 @@ pub struct RuntimeConfiguration {
 }
 
 /// Configuration options related to gRPC pseudo-Nodes.
-///
-/// `Debug` is intentionally not implemented in order to avoid accidentally logging secrets.
 #[derive(Default, Clone)]
 pub struct GrpcConfiguration {
     /// TLS identity to use for all gRPC Server Nodes.
@@ -73,4 +71,11 @@ pub struct GrpcConfiguration {
     /// Root TLS certificate to use for all gRPC Client Nodes.
     // TODO(#999): Remove user-configurable root CA.
     pub grpc_client_root_tls_certificate: Option<Certificate>,
+}
+
+/// `Debug` is manually implemented in order to avoid accidentally logging secrets.
+impl std::fmt::Debug for GrpcConfiguration {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "GrpcConfiguration <redacted>")
+    }
 }
