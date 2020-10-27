@@ -536,6 +536,12 @@ impl Runnable for Cmd {
         if let Ok(v) = std::env::var("CARGO_HOME") {
             cmd.env("CARGO_HOME", v);
         }
+        if let Ok(v) = std::env::var("CARGO_INCREMENTAL") {
+            cmd.env("CARGO_INCREMENTAL", v);
+        }
+        if let Ok(v) = std::env::var("RUSTC_WRAPPER") {
+            cmd.env("RUSTC_WRAPPER", v);
+        }
 
         // Rust runtime variables.
         cmd.env(

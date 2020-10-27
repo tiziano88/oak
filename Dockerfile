@@ -257,9 +257,26 @@ ARG rust_analyzer_location=https://github.com/rust-analyzer/rust-analyzer/releas
 RUN curl --location ${rust_analyzer_location} > ${install_dir}/rust-analyzer
 RUN chmod +x ${install_dir}/rust-analyzer
 
+# Install sccache
+# https://github.com/mozilla/sccache
+ARG sccache_version=0.2.13
+ARG sccache_dir=/usr/local/sccache
+ARG sccache_location=https://github.com/mozilla/sccache/releases/download/${sccache_version}/sccache-${sccache_version}-x86_64-unknown-linux-musl.tar.gz
+ENV PATH "${sccache_dir}:${PATH}"
+RUN mkdir --parents ${sccache_dir} \
+  && curl --location ${sccache_location} | tar --extract --gzip --directory=${sccache_dir} --strip-components=1 \
+  && chmod +x ${sccache_dir}/sccache
+
+ENV SCCACHE_GCS_BUCKET sccache
+ENV SCCACHE_GCS_KEY_PATH /opt/my-project/.oak_remote_cache_key.json
+ENV SCCACHE_GCS_RW_MODE READ_WRITE
+ENV RUSTC_WRAPPER sccache
+# Disable cargo incremental compilation, as it conflicts with sccache: https://github.com/mozilla/sccache#rust
+ENV CARGO_INCREMENTAL false
+
 # Unset $CARGO_HOME so that the new user will use the default value for it, which will point it to
 # its own home folder.
-ENV CARGO_HOME ""
+# ENV CARGO_HOME /opt/my-project/cargo-cache
 
 # Placeholder args that are expected to be passed in at image build time.
 # See https://code.visualstudio.com/docs/remote/containers-advanced#_creating-a-nonroot-user
